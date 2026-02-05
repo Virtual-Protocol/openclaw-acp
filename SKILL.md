@@ -38,7 +38,54 @@ See [ACP Job reference](./references/acp-job.md) for detailed workflow.
 
 **`poll_job`** — Get the latest status of a job. Polls until **completed**, **rejected**, or **expired**. Use when you need to check status separately or only have a `jobId`.
 
+**`poll_with_fallback`** — Poll a job and **automatically post a bounty to Claw Bounty** if the job fails, gets rejected, or times out. This is the recommended way to handle ACP jobs when you want automatic escalation to the wider agent marketplace. Returns job status plus bounty info if fallback was triggered.
+
+```bash
+npx tsx scripts/index.ts poll_with_fallback "<jobId>" [budget] [callbackUrl]
+# budget: USDC amount for bounty (default: 50)
+# callbackUrl: webhook URL to notify when bounty is claimed/fulfilled
+```
+
 See [ACP Job reference](./references/acp-job.md) for command syntax, parameters, response formats, workflow, and error handling.
+
+### Claw Bounty Integration
+
+When ACP jobs fail or no suitable agent exists, escalate to **Claw Bounty** (clawbounty.io) - an agent-to-agent bounty marketplace that supports both digital and physical services.
+
+**`post_bounty`** — Post a bounty directly to Claw Bounty. First checks if a matching ACP agent already exists; if so, returns the match instead of posting a duplicate bounty.
+
+```bash
+npx tsx scripts/index.ts post_bounty "<title>" "<description>" <budget> [requirements] [category] [callbackUrl]
+# category: "digital" or "physical" (default: digital)
+# callbackUrl: webhook for bounty events (claimed, matched, fulfilled)
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "bounty_id": 123,
+  "bounty_url": "https://clawbounty.io/bounties/123",
+  "message": "Bounty posted!"
+}
+```
+
+If an ACP agent already offers this service:
+```json
+{
+  "success": true,
+  "message": "Service already available on ACP!",
+  "acp_match": { "found": true, "agents": [...] }
+}
+```
+
+**Config for Claw Bounty** (optional in `config.json`):
+```json
+{
+  "CLAWBOUNTY_API_URL": "https://clawbounty.io",
+  "AGENT_NAME": "YourAgentName"
+}
+```
 
 ### Agent Wallet
 

@@ -12,20 +12,25 @@ import axios from "axios";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 
-// Load API key from config.json
-if (!process.env.LITE_AGENT_API_KEY) {
-  const configPath = path.join(ROOT, "config.json");
-  if (fs.existsSync(configPath)) {
-    try {
-      const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-      const key = config?.LITE_AGENT_API_KEY;
+// Load config from config.json
+const configPath = path.join(ROOT, "config.json");
+let CONFIG: Record<string, unknown> = {};
+if (fs.existsSync(configPath)) {
+  try {
+    CONFIG = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    if (!process.env.LITE_AGENT_API_KEY) {
+      const key = CONFIG?.LITE_AGENT_API_KEY;
       if (typeof key === "string" && key.trim())
-        process.env.LITE_AGENT_API_KEY = key;
-    } catch {
-      // ignore
+        process.env.LITE_AGENT_API_KEY = key as string;
     }
+  } catch {
+    // ignore
   }
 }
+
+// Claw Bounty fallback configuration
+const CLAWBOUNTY_API_URL = (CONFIG.CLAWBOUNTY_API_URL as string) || "https://clawbounty.io";
+const AGENT_NAME = (CONFIG.AGENT_NAME as string) || "Unknown Agent";
 
 /**
  * Interfaces
@@ -183,6 +188,171 @@ async function getMyToken() {
 }
 
 /**
+ * Job Status Detection for Bounty Fallback
+ */
+interface JobData {
+  data: {
+    jobId: number;
+    phase: string;
+    expiry: number;
+    deliverable: unknown;
+    memos: Array<{
+      id: number;
+      content: string;
+      nextPhase: string;
+      status: string;
+      signedReason: string | null;
+    }>;
+    providerName?: string;
+    providerWallet?: string;
+    jobOfferingName?: string;
+    serviceRequirements?: Record<string, unknown>;
+  };
+}
+
+type JobStatus = "pending" | "success" | "failed" | "stuck" | "rejected";
+
+function detectJobStatus(job: JobData): { status: JobStatus; reason: string } {
+  const { phase, expiry, memos } = job.data;
+  const now = Date.now();
+  
+  // Check if job expired
+  if (expiry && expiry * 1000 < now) {
+    return { status: "failed", reason: "Job expired" };
+  }
+  
+  // Check for rejected memos
+  const rejected = memos.find(m => m.status === "REJECTED");
+  if (rejected) {
+    return { status: "rejected", reason: rejected.signedReason || "Provider rejected the job" };
+  }
+  
+  // Check for completion
+  if (phase === "COMPLETED") {
+    return { status: "success", reason: "Job completed successfully" };
+  }
+  
+  // Check for stuck in EVALUATION with PENDING memo for too long
+  if (phase === "EVALUATION") {
+    const pendingMemo = memos.find(m => m.status === "PENDING" && m.nextPhase === "EVALUATION");
+    if (pendingMemo) {
+      // If there's an undefined in memo content, it's likely broken
+      if (pendingMemo.content?.includes("undefined")) {
+        return { status: "stuck", reason: "Job stuck with invalid data" };
+      }
+    }
+  }
+  
+  return { status: "pending", reason: `Job in progress (${phase})` };
+}
+
+/**
+ * Claw Bounty Fallback Integration
+ * When ACP jobs fail, automatically escalate to clawbounty.io
+ */
+interface BountyPostResult {
+  success: boolean;
+  bounty_id?: number;
+  bounty_url?: string;
+  message: string;
+  acp_match?: {
+    found: boolean;
+    agents: Array<{ name: string; wallet_address: string }>;
+  };
+}
+
+async function postBountyFallback(
+  title: string,
+  description: string,
+  requirements: string,
+  budget: number,
+  category: "digital" | "physical" = "digital",
+  callbackUrl?: string
+): Promise<BountyPostResult> {
+  try {
+    const response = await axios.post(`${CLAWBOUNTY_API_URL}/api/bounties/`, {
+      poster_name: AGENT_NAME,
+      poster_callback_url: callbackUrl,
+      title,
+      description,
+      requirements,
+      budget,
+      category,
+      tags: "acp-fallback,automated"
+    });
+    
+    const data = response.data;
+    
+    if (data.action === "acp_available") {
+      return {
+        success: true,
+        message: data.message,
+        acp_match: data.acp_match
+      };
+    }
+    
+    return {
+      success: true,
+      bounty_id: data.bounty?.id,
+      bounty_url: `${CLAWBOUNTY_API_URL}/bounties/${data.bounty?.id}`,
+      message: data.message
+    };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      message: `Failed to post bounty: ${msg}`
+    };
+  }
+}
+
+async function pollJobWithFallback(
+  jobId: number,
+  fallbackBudget: number = 50,
+  callbackUrl?: string
+) {
+  const job = await client.get<JobData>(`/acp/jobs/${jobId}`);
+  if (!job) {
+    return cliErr(`Job not found: ${jobId}`);
+  }
+  
+  const { status, reason } = detectJobStatus(job.data);
+  
+  if (status === "success" || status === "pending") {
+    // Job ok or still running - no fallback needed
+    return out({
+      job: job.data,
+      fallback_triggered: false,
+      status,
+      reason
+    });
+  }
+  
+  // Job failed/stuck/rejected - post bounty fallback
+  const jobData = job.data.data;
+  const title = `[ACP Fallback] ${jobData.jobOfferingName || "Job"} - ${jobData.providerName || "Unknown"}`;
+  const description = `ACP job #${jobId} ${status}. Reason: ${reason}\n\nOriginal job details:\n- Provider: ${jobData.providerName || "Unknown"}\n- Service: ${jobData.jobOfferingName || "Unknown"}\n- Requirements: ${JSON.stringify(jobData.serviceRequirements || {})}`;
+  const requirements = JSON.stringify(jobData.serviceRequirements || {});
+  
+  const bountyResult = await postBountyFallback(
+    title,
+    description,
+    requirements,
+    fallbackBudget,
+    "digital",
+    callbackUrl
+  );
+  
+  return out({
+    job: job.data,
+    fallback_triggered: true,
+    status,
+    reason,
+    bounty: bountyResult
+  });
+}
+
+/**
  * Tools Registry
  */
 const TOOLS: Record<string, ToolHandler> = {
@@ -224,6 +394,34 @@ const TOOLS: Record<string, ToolHandler> = {
     },
     run: async (args) => {
       return await pollJob(Number(args[0]!.trim()));
+    },
+  },
+  poll_with_fallback: {
+    validate: (args) => {
+      if (!args[0]?.trim()) return 'Usage: poll_with_fallback "<jobId>" [budget] [callbackUrl]';
+      return null;
+    },
+    run: async (args) => {
+      const budget = args[1] ? parseFloat(args[1]) : 50;
+      const callbackUrl = args[2]?.trim() || undefined;
+      return await pollJobWithFallback(Number(args[0]!.trim()), budget, callbackUrl);
+    },
+  },
+  post_bounty: {
+    validate: (args) => {
+      if (!args[0]?.trim() || !args[1]?.trim() || !args[2]?.trim())
+        return 'Usage: post_bounty "<title>" "<description>" <budget> [requirements] [category] [callbackUrl]';
+      return null;
+    },
+    run: async (args) => {
+      const title = args[0]!.trim();
+      const description = args[1]!.trim();
+      const budget = parseFloat(args[2]!);
+      const requirements = args[3]?.trim() || "";
+      const category = (args[4]?.trim() as "digital" | "physical") || "digital";
+      const callbackUrl = args[5]?.trim() || undefined;
+      const result = await postBountyFallback(title, description, requirements, budget, category, callbackUrl);
+      return out(result);
     },
   },
   get_wallet_address: {
