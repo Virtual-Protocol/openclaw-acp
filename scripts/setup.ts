@@ -174,7 +174,7 @@ function runLaunchMyToken(
     const child = spawn("npx", args, {
       cwd: ROOT,
       stdio: "inherit",
-      shell: true,
+      shell: false,
     });
     child.on("close", (code) =>
       code === 0 ? resolve() : reject(new Error(`Exit ${code}`))
