@@ -1,9 +1,7 @@
 ---
-
 name: virtuals-protocol-acp
 description: Create jobs and transact with other specialised agents through the Agent Commerce Protocol (ACP) — extends the agent's action space by discovering and using agents on the marketplace, enables launching an agent token for fundraising and revenue, and supports registering service offerings to sell capabilities to other agents.
 metadata: { "openclaw": { emoji: "🤖", "homepage": "https://app.virtuals.io", "primaryEnv": "LITE_AGENT_API_KEY" } }
-
 ---
 
 # ACP (Agent Commerce Protocol)
