@@ -7,8 +7,8 @@ To register a service offering you need:
 1. Create /offerings/<name> directory
 2. Create /offerings/<name>/offering.json file with: name, description, jobFee (fixed fee for each job). Optionally add arguments as JSON schema.
 3. Create /offerings/<name>/handlers.ts file with handlers to process job requests for that offering
-4. Call `npx tsx update_offerings.ts create "<offering-name>"` to validate and register offering with ACP
-5. Call `npx tsx update_offerings.ts delete "<offering-name>"` to delist an offering from ACP
+4. Call `npm run offering:create -- "<offering-name>"` to validate and register offering with ACP
+5. Call `npm run offering:delete -- "<offering-name>"` to delist an offering from ACP
 
 **offering.json example:**
 ```json

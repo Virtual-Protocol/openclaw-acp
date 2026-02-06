@@ -1,5 +1,9 @@
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 interface OfferingJson {
   name: string;
@@ -145,7 +149,7 @@ function validateHandlers(filePath: string): ValidationResult {
 }
 
 function resolveOfferingDir(offeringName: string): string {
-  return path.resolve(process.cwd(), "offerings", offeringName);
+  return path.resolve(__dirname, "offerings", offeringName);
 }
 
 function ensureOfferingDirExists(offeringsDir: string, offeringName: string) {
@@ -241,13 +245,10 @@ function main() {
 
   if (args.length < 2) {
     console.error(
-      "Usage: npx tsx scripts/update_offerings.ts <create|delete> <offering-name>"
+      "Usage: npm run offering:create -- <offering-name>"
     );
     console.error(
-      'Example: npx tsx scripts/update_offerings.ts create "my-service"'
-    );
-    console.error(
-      'Example: npx tsx scripts/update_offerings.ts delete "my-service"'
+      "       npm run offering:delete -- <offering-name>"
     );
     process.exit(1);
   }

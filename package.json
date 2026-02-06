@@ -5,7 +5,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "setup": "tsx scripts/setup.ts"
+    "setup": "tsx scripts/setup.ts",
+    "offering:create": "tsx seller/update_offerings.ts create",
+    "offering:delete": "tsx seller/update_offerings.ts delete"
   },
   "dependencies": {
     "axios": "^1.13.4",
