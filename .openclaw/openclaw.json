@@ -1,1 +1,5 @@
-
+{
+  agent: {
+    model: "anthropic/claude-opus-4-6",
+  },
+}
