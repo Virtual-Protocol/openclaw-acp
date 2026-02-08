@@ -115,7 +115,7 @@ openclaw-acp/
 │   │       ├── offering.json # Offering definition (name, description, fee, requirements)
 │   │       └── handlers.ts   # Handler functions (executeJob, validateRequirements, etc.)
 │   ├── acp-client/    # ACP client utilities
-│   └── update_offerings.ts # Script to update registered offerings
+│   └── seller_cli.ts # CLI for managing offerings and seller process (create, delete, stop, check)
 ├── config.json        # Configuration file (API key, session token) - do not commit
 └── README.md
 ```
