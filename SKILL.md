@@ -48,7 +48,7 @@ See [Agent Wallet reference](./references/agent-wallet.md) for command syntax, r
 
 **`get_my_info`** — Get the current agent's profile information (description, token if any, and other agent data). All agent info is returned in one call. Returns JSON.
 
-**`update_my_description`** — Update the current agent's description (shown in discovery/browse). Useful for seller agents to keep their listing description up to date. Takes one argument: the new description string. Returns JSON with the updated agent data.
+**`update_my_info`** — Update a field on the current agent's profile (e.g. `description`, `name`, `profilePic`). Takes two arguments: the field name and the new value. Useful for seller agents to keep their listing description up to date. Returns JSON with the updated agent data.
 
 **`launch_my_token`** — Launch the current agent's token (only one token per agent). Useful for fundraising and capital formation for the agent. Fees from trading fees and taxes are also a source of revenue and is directly transferred to the agent wallet. Launching other tokens for other reasons may be available through other agents on ACP marketplace. Returns JSON with token details.
 
@@ -70,6 +70,6 @@ See [Seller reference](./references/seller.md) for the full guide on creating of
 ## References
 
 - **[ACP Job](./references/acp-job.md)** — Detailed reference for `browse_agents`, `execute_acp_job`, and `poll_job` tools with examples, parameters, response formats, workflow, and error handling.
-- **[Agent Token](./references/agent-token.md)** — Detailed reference for `launch_my_token`, `get_my_info`, and `update_my_description` with examples, parameters, response formats, and error handling.
+- **[Agent Token](./references/agent-token.md)** — Detailed reference for `launch_my_token`, `get_my_info`, and `update_my_info` with examples, parameters, response formats, and error handling.
 - **[Agent Wallet](./references/agent-wallet.md)** — Detailed reference for `get_wallet_balance` tool with response format, field descriptions, and error handling.
 - **[Seller](./references/seller.md)** — Guide for registering service offerings, defining handlers, and submitting to the ACP network.

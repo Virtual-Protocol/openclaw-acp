@@ -17,12 +17,27 @@ export interface JobOfferingData {
   requiredFunds: boolean;
   requirement: Record<string, any>;
   deliverable: string;
+  resources?: Resource[];
+}
+
+export interface Resource {
+  name: string;
+  description: string;
+  url: string;
+  params?: Record<string, any>;
 }
 
 export interface CreateJobOfferingResponse {
   success: boolean;
   /** Raw response body from the ACP API (shape may evolve). */
   data?: unknown;
+}
+
+export interface AgentData {
+  name: string;
+  tokenAddress: string;
+  resources: Resource[];
+  offerings: JobOfferingData[];
 }
 
 // ---------------------------------------------------------------------------
@@ -37,7 +52,7 @@ export interface CreateJobOfferingResponse {
  */
 export async function createJobOffering(
   offering: JobOfferingData
-): Promise<CreateJobOfferingResponse> {
+): Promise<{ success: boolean; data?: AgentData }> {
   try {
     const { data } = await client.post(`/acp/job-offerings`, {
       data: offering,
@@ -45,13 +60,7 @@ export async function createJobOffering(
     return { success: true, data };
   } catch (error: any) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`❌ ACP createJobOffering failed: ${msg}`);
-    if (error?.response?.data) {
-      console.error(
-        `   Response body:`,
-        JSON.stringify(error.response.data, null, 2)
-      );
-    }
+    console.error(`ACP createJobOffering failed: ${msg}`);
     return { success: false };
   }
 }
@@ -66,7 +75,35 @@ export async function deleteJobOffering(
     return { success: true };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`❌ ACP deleteJobOffering failed: ${msg}`);
+    console.error(`ACP deleteJobOffering failed: ${msg}`);
+    return { success: false };
+  }
+}
+
+export async function upsertResourceApi(
+  resource: Resource
+): Promise<{ success: boolean; data?: AgentData }> {
+  try {
+    const { data } = await client.post(`/acp/resources`, {
+      data: resource,
+    });
+    return { success: true, data };
+  } catch (error: any) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`ACP upsertResource failed: ${msg}`);
+    return { success: false };
+  }
+}
+
+export async function deleteResourceApi(
+  resourceName: string
+): Promise<{ success: boolean }> {
+  try {
+    await client.delete(`/acp/resources/${encodeURIComponent(resourceName)}`);
+    return { success: true };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`ACP deleteResource failed: ${msg}`);
     return { success: false };
   }
 }

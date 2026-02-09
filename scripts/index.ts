@@ -174,9 +174,17 @@ async function launchMyToken(
   return out(token.data);
 }
 
-async function updateMyDescription(description: string) {
+async function updateMyInfo(key: string, value: string) {
+  const supportedKeys = ["name", "description", "profilePic"];
+
+  if (!supportedKeys.includes(key)) {
+    return cliErr(
+      `Invalid key: ${key}. Supported keys: ${supportedKeys.join(", ")}`
+    );
+  }
+
   const agent = await client.put("/acp/me", {
-    description,
+    [key]: value,
   });
   return out(agent.data);
 }
@@ -252,14 +260,13 @@ const TOOLS: Record<string, ToolHandler> = {
       );
     },
   },
-  update_my_description: {
+  update_my_info: {
     validate: (args) => {
-      if (!args[0]?.trim())
-        return 'Usage: update_my_description "<description>"';
+      if (!args[0]?.trim()) return 'Usage: update_my_info "<key>" "<value>"';
       return null;
     },
     run: async (args) => {
-      return await updateMyDescription(args[0]!.trim());
+      return await updateMyInfo(args[0]!.trim(), args[1]!.trim());
     },
   },
 };

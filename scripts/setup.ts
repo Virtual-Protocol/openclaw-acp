@@ -4,7 +4,6 @@
  * Run: npm run setup
  *
  * Step 1: 3-legged OAuth — get login link → user completes → check auth-status → then create agent, generate API key, store it.
- * Mock APIs (USE_MOCK_AUTH=1): get-auth-url, auth-status. Replace with real endpoints when ready.
  */
 
 import readline from "readline";
@@ -253,7 +252,11 @@ async function main(): Promise<void> {
         if (result?.apiKey) {
           writeConfigJson({ [ENV_KEYS.LITE_AGENT_API_KEY]: result.apiKey });
           log(
-            `✓ Agent created.\n  Wallet address: ${result.walletAddress}\n  API key: ${redactApiKey(result.apiKey)} (saved to config.json)\n`
+            `✓ Agent created.\n  Wallet address: ${
+              result.walletAddress
+            }\n  API key: ${redactApiKey(
+              result.apiKey
+            )} (saved to config.json)\n`
           );
         } else {
           log(`⚠ Create agent failed. Please try again.\n`);

@@ -8,6 +8,8 @@
     "setup": "tsx scripts/setup.ts",
     "offering:create": "tsx seller/update_offerings.ts create",
     "offering:delete": "tsx seller/update_offerings.ts delete",
+    "resource:create": "tsx seller/update_resources.ts create",
+    "resource:delete": "tsx seller/update_resources.ts delete",
     "seller:run": "tsx seller/runtime/seller.ts"
   },
   "dependencies": {
