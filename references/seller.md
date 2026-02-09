@@ -97,22 +97,27 @@ Once the interview is complete, create the files:
    **Template structure:**
 
    ```typescript
-   import type { ExecuteJobResult } from "../../runtime/offeringTypes.js";
+   import type { ExecuteJobResult, JobContext } from "../../runtime/offeringTypes.js";
 
-   // Required handler
-   export async function executeJob(request: any): Promise<ExecuteJobResult> {
+   // Required handler (runtime calls: executeJob(requirements, ctx))
+   export async function executeJob(
+     requirements: any,
+     ctx: JobContext
+   ): Promise<ExecuteJobResult> {
      // Your implementation here
-     return { deliverable: "result" };
+     // - requirements: buyer-provided inputs (serviceRequirements)
+     // - ctx.jobId: use for on-disk deliverables under deliverables/acp-delivery/<jobId>/
+     return { deliverable: { type: "result", value: { jobId: ctx.jobId } } };
    }
 
    // Optional: validation handler
-   export function validateRequirements(request: any): boolean {
+   export function validateRequirements(requirements: any): boolean {
      // Return true to accept, false to reject
      return true;
    }
 
    // Optional: funds request handler (only if requiredFunds: true)
-   export function requestAdditionalFunds(request: any): {
+   export function requestAdditionalFunds(requirements: any): {
      amount: number;
      tokenAddress: string;
      recipient: string;
@@ -174,13 +179,18 @@ npm run offering:delete -- "<offering-name>"
 ### Execution handler (required)
 
 ```typescript
-export async function executeJob(request: any): Promise<ExecuteJobResult>;
+import type { ExecuteJobResult, JobContext } from "../../runtime/offeringTypes.js";
+
+export async function executeJob(
+  requirements: any,
+  ctx: JobContext
+): Promise<ExecuteJobResult>;
 ```
 
 Where `ExecuteJobResult` is:
 
 ```typescript
-import type { ExecuteJobResult } from "../../runtime/offeringTypes.js";
+import type { ExecuteJobResult, JobContext } from "../../runtime/offeringTypes.js";
 
 interface ExecuteJobResult {
   /** The job result — a simple string or structured object. */
@@ -193,6 +203,14 @@ interface ExecuteJobResult {
     amount: number;
   };
 }
+
+interface JobContext {
+  jobId: number;
+  offeringName: string;
+  clientAddress?: string;
+  providerAddress?: string;
+  acpContext?: Record<string, any>;
+}
 ```
 
 Executes the job and returns the result. If the job involves returning funds to the buyer (e.g. a swap, refund, or payout), include `payableDetail` with the token contract address and amount.
@@ -200,27 +218,83 @@ Executes the job and returns the result. If the job involves returning funds to 
 **Simple example** (no transfer):
 
 ```typescript
-export async function executeJob(request: any): Promise<ExecuteJobResult> {
-  return { deliverable: `Done: ${request.task}` };
+export async function executeJob(
+  requirements: any,
+  ctx: JobContext
+): Promise<ExecuteJobResult> {
+  return { deliverable: `Job ${ctx.jobId} done: ${requirements.task}` };
 }
 ```
 
 **Example with funds transfer back to buyer:**
 
 ```typescript
-export async function executeJob(request: any): Promise<ExecuteJobResult> {
+export async function executeJob(
+  requirements: any,
+  ctx: JobContext
+): Promise<ExecuteJobResult> {
   const result = await performSwap(
-    request.inputToken,
-    request.outputToken,
-    request.amount
+    requirements.inputToken,
+    requirements.outputToken,
+    requirements.amount
   );
   return {
-    deliverable: { type: "swap_result", value: result },
+    deliverable: { type: "swap_result", value: { jobId: ctx.jobId, ...result } },
     payableDetail: {
-      tokenAddress: request.outputToken,
+      tokenAddress: requirements.outputToken,
       amount: result.outputAmount,
     },
   };
+}
+```
+
+### On-disk delivery artifacts (recommended)
+
+Seller offerings should write **local deliverables** under:
+
+- `/opt/fundbot/work/workspace-connie/deliverables/acp-delivery/<jobId>/`
+
+The helper `dispatchOfferingDelivery(requirements, ctx, opts)` will:
+
+- validate required intake fields
+- write `INTAKE_REQUEST.md` (always) + `JOB_SNAPSHOT.json`
+- if intake is missing: return a `needs_info` deliverable (+ `manifest.json`)
+- if intake is complete: write `REPORT.md`, `PIPELINE.md`, `FINDINGS.json`, `manifest.json`
+
+Example:
+
+```typescript
+import type { ExecuteJobResult, JobContext } from "../../runtime/offeringTypes.js";
+import { dispatchOfferingDelivery } from "../../runtime/deliveryDispatcher.js";
+
+export async function executeJob(
+  requirements: any,
+  ctx: JobContext
+): Promise<ExecuteJobResult> {
+  return await dispatchOfferingDelivery(requirements ?? {}, ctx, {
+    offeringId: "my_offering",
+    deliverableType: "my_offering_delivery",
+    requiredFields: [
+      {
+        id: "task",
+        label: "Task",
+        description: "What you want the seller to do",
+      },
+    ],
+    buildReport: ({ ctx, intake, deliveryDir }) =>
+      `# Report
+
+Job: ${ctx.jobId}
+
+Task: ${intake.task}
+
+Artifacts: ${deliveryDir}
+`,
+    buildPipeline: () => `# Pipeline
+
+- (steps go here)
+`,
+  });
 }
 ```
 
@@ -229,7 +303,7 @@ export async function executeJob(request: any): Promise<ExecuteJobResult> {
 Provide this if requests need to be validated and rejected early.
 
 ```typescript
-export function validateRequirements(request: any): boolean;
+export function validateRequirements(requirements: any): boolean;
 ```
 
 Returns `true` to accept, `false` to reject.
@@ -237,8 +311,8 @@ Returns `true` to accept, `false` to reject.
 **Example:**
 
 ```typescript
-export function validateRequirements(request: any): boolean {
-  return request.amount > 0 && request.amount <= 1000000;
+export function validateRequirements(requirements: any): boolean {
+  return requirements.amount > 0 && requirements.amount <= 1000000;
 }
 ```
 
@@ -250,7 +324,7 @@ Provide this handler **only** when the job requires the client to transfer addit
 - If `requiredFunds: false` → `handlers.ts` **must not** export `requestAdditionalFunds`.
 
 ```typescript
-export function requestAdditionalFunds(request: any): {
+export function requestAdditionalFunds(requirements: any): {
   amount: number;
   tokenAddress: string;
   recipient: string;
@@ -266,15 +340,15 @@ Returns the funds transfer instruction:
 **Example:**
 
 ```typescript
-function requestAdditionalFunds(request: any): {
+export function requestAdditionalFunds(requirements: any): {
   amount: number;
   tokenAddress: string;
   recipient: string;
 } {
   return {
-    amount: request.swapAmount,
-    tokenAddress: request.tokenAddress,
-    recipient: request.recipient,
+    amount: requirements.swapAmount,
+    tokenAddress: requirements.tokenAddress,
+    recipient: requirements.recipient,
   };
 }
 ```
@@ -335,3 +409,14 @@ npm run resource:delete -- "<resource-name>"
 ```
 
 ---
+
+## Local testing (dry-run)
+
+Simulate an ACP job locally (no network calls) and verify that artifacts are written to `deliverables/acp-delivery/<jobId>/`:
+
+```bash
+npm run seller:dry-run
+npm run seller:dry-run -- --list
+npm run seller:dry-run -- --offering typescript_api_development
+npm run seller:dry-run -- --offering smart_contract_security_audit --requirements '{"contractSource":"pragma solidity ^0.8.20; contract X{}"}'
+```
