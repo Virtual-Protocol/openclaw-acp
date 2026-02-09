@@ -24,6 +24,7 @@ export async function executeJob(
         description:
           "Where this skill will run or integrate (e.g., Uniswap, X/Twitter, GitHub, Discord, custom API).",
         aliases: ["platform", "integration"],
+        required: false,
       },
       {
         id: "deadline",
@@ -31,6 +32,7 @@ export async function executeJob(
         description:
           "When you need the first working version delivered (include timezone).",
         aliases: ["due", "dueDate", "eta"],
+        required: false,
       },
     ],
     generateFindings: ({ request, intake }) => {
@@ -146,11 +148,4 @@ export async function executeJob(
       );
     },
   });
-}
-
-export function validateRequirements(request: any): boolean {
-  return (
-    typeof request?.skillDescription === "string" &&
-    request.skillDescription.trim().length > 0
-  );
 }

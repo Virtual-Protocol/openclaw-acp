@@ -102,10 +102,3 @@ export async function executeJob(
     },
   });
 }
-
-export function validateRequirements(request: any): boolean {
-  return (
-    typeof request?.agentFramework === "string" &&
-    request.agentFramework.trim().length > 0
-  );
-}

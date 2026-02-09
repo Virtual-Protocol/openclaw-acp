@@ -167,6 +167,7 @@ export async function executeJob(
         description:
           "Which contracts/files/functions to include (and anything to exclude).",
         aliases: ["auditScope"],
+        required: false,
       },
       {
         id: "chainTarget",
@@ -174,6 +175,7 @@ export async function executeJob(
         description:
           "Target deployment chain (e.g., Base mainnet, Ethereum mainnet, Arbitrum One).",
         aliases: ["chain", "network", "targetChain"],
+        required: false,
       },
       {
         id: "deadline",
@@ -181,6 +183,7 @@ export async function executeJob(
         description:
           "When you need the first full audit pass delivered (include timezone).",
         aliases: ["due", "dueDate", "eta"],
+        required: false,
       },
     ],
     generateFindings: ({ request, intake }) => {
@@ -304,18 +307,4 @@ export async function executeJob(
       );
     },
   });
-}
-
-export function validateRequirements(request: any): boolean {
-  const contractSource =
-    typeof request?.contractSource === "string" ? request.contractSource : "";
-  const repoUrl = typeof request?.repoUrl === "string" ? request.repoUrl : "";
-  const repositoryUrl =
-    typeof request?.repositoryUrl === "string" ? request.repositoryUrl : "";
-
-  return (
-    contractSource.trim().length > 0 ||
-    repoUrl.trim().length > 0 ||
-    repositoryUrl.trim().length > 0
-  );
 }

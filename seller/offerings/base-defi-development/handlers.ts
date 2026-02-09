@@ -129,10 +129,3 @@ export async function executeJob(
     },
   });
 }
-
-export function validateRequirements(request: any): boolean {
-  return (
-    typeof request?.projectDescription === "string" &&
-    request.projectDescription.trim().length > 10
-  );
-}

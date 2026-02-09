@@ -134,6 +134,7 @@ export async function executeJob(
         description:
           "What to focus on (security, performance, gas, style, architecture, etc.).",
         aliases: ["scope"],
+        required: false,
       },
       {
         id: "language",
@@ -146,6 +147,7 @@ export async function executeJob(
         label: "Deadline",
         description: "When you need the first review pass delivered.",
         aliases: ["due", "dueDate", "eta"],
+        required: false,
       },
     ],
     generateFindings: ({ request, intake }) => {
@@ -228,10 +230,4 @@ export async function executeJob(
       );
     },
   });
-}
-
-export function validateRequirements(request: any): boolean {
-  return (
-    typeof request?.codeSource === "string" && request.codeSource.trim().length > 0
-  );
 }

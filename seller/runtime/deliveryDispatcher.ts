@@ -1,12 +1,22 @@
 // =============================================================================
-// Shared delivery dispatcher utilities for seller offerings.
+// Shared delivery dispatcher utilities for seller offerings — REAL artifacts.
 //
 // Goals:
 // - Validate intake consistently across offerings.
-// - If intake is incomplete: return a "needs_info" deliverable + write an
-//   INTAKE_REQUEST.md file under deliverables/acp-delivery/<jobId>/.
-// - If intake is complete: write a report skeleton + pipeline files under the
-//   same directory and return a structured deliverable pointing to them.
+// - If intake is incomplete: return a "needs_info" deliverable + write
+//   INTAKE_REQUEST.md under deliverables/acp-delivery/<jobId>/.
+// - If intake is complete: write REPORT.md (+ optional offering-specific
+//   filenames) under the same directory and return a structured deliverable
+//   pointing to what was written.
+//
+// Canonical artifact structure (always written):
+//   deliverables/acp-delivery/<jobId>/
+//   ├── manifest.json         # Delivery metadata (type, timestamp, offering)
+//   ├── INTAKE_REQUEST.md     # Intake/request record (missing fields listed)
+//   ├── REPORT.md             # Delivery output (report)
+//   ├── FINDINGS.json         # Structured findings (JSON)
+//   ├── PIPELINE.md           # Implementation/execution runbook
+//   └── JOB_SNAPSHOT.json     # Debug snapshot of full request context
 // =============================================================================
 
 import * as fs from "fs";
@@ -19,12 +29,19 @@ const DEFAULT_ACP_DELIVERY_ROOT =
 export const ACP_DELIVERY_ROOT =
   process.env.ACP_DELIVERY_ROOT ?? DEFAULT_ACP_DELIVERY_ROOT;
 
+const CANONICAL_INTAKE_FILE = "INTAKE_REQUEST.md";
+const CANONICAL_REPORT_FILE = "REPORT.md";
+const CANONICAL_PIPELINE_FILE = "PIPELINE.md";
+const CANONICAL_FINDINGS_FILE = "FINDINGS.json";
+const CANONICAL_MANIFEST_FILE = "manifest.json";
+const CANONICAL_SNAPSHOT_FILE = "JOB_SNAPSHOT.json";
+
 export type IntakeValue = string | number | boolean | null | undefined;
 
 export interface IntakeFieldSpec {
   /** Canonical id we will use in the normalized intake object. */
   id: string;
-  /** Human label shown in INTAKE_REQUEST.md and deliverable payload. */
+  /** Human label shown in intake file and deliverable payload. */
   label: string;
   /** Optional description to help the buyer provide the right value. */
   description?: string;
@@ -46,14 +63,19 @@ export interface DeliveryDispatchOptions {
   /** Required intake fields for this offering. */
   requiredFields: IntakeFieldSpec[];
 
-  /** Report skeleton file name (markdown). */
+  /** Optional: also write the intake markdown to this filename (in addition to INTAKE_REQUEST.md). */
+  intakeFileName?: string;
+
+  /** Optional: also write the report markdown to this filename (in addition to REPORT.md). */
   reportFileName?: string;
-  /** Pipeline / runbook file name (markdown). */
+
+  /** Optional: also write the pipeline markdown to this filename (in addition to PIPELINE.md). */
   pipelineFileName?: string;
-  /** Findings output file name (json). */
+
+  /** Optional: also write the findings JSON to this filename (in addition to FINDINGS.json). */
   findingsFileName?: string;
 
-  /** Builds the report skeleton markdown. */
+  /** Builds the delivery report markdown (REPORT.md content). */
   buildReport: (args: {
     request: Record<string, any>;
     ctx: JobContext;
@@ -62,7 +84,7 @@ export interface DeliveryDispatchOptions {
     deliveryDir: string;
   }) => string;
 
-  /** Builds a pipeline / runbook markdown. */
+  /** Builds a pipeline / runbook markdown (PIPELINE.md content). */
   buildPipeline: (args: {
     request: Record<string, any>;
     ctx: JobContext;
@@ -70,7 +92,7 @@ export interface DeliveryDispatchOptions {
     deliveryDir: string;
   }) => string;
 
-  /** Optional: produce initial findings (must be JSON-serializable). */
+  /** Optional: produce findings (must be JSON-serializable). */
   generateFindings?: (args: {
     request: Record<string, any>;
     ctx: JobContext;
@@ -125,37 +147,142 @@ function resolveIntakeField(
   return undefined;
 }
 
-function buildIntakeRequestMarkdown(args: {
+function buildIntakeMarkdown(args: {
   ctx: JobContext;
   offeringId: string;
   deliveryDir: string;
   intake: Record<string, IntakeValue>;
-  missing: IntakeFieldSpec[];
+  requiredFields: IntakeFieldSpec[];
+  missing?: IntakeFieldSpec[];
 }): string {
-  const { ctx, offeringId, deliveryDir, intake, missing } = args;
+  const { ctx, offeringId, deliveryDir, intake, requiredFields, missing } = args;
+  const now = new Date().toISOString();
 
-  const missingLines = missing
-    .map((f) => `- **${f.label}** (key: \`${f.id}\`)${f.description ? ` — ${f.description}` : ""}`)
+  const intakeRows = requiredFields
+    .map((f) => {
+      const value = intake[f.id];
+      const status =
+        value !== undefined
+          ? "✓ provided"
+          : f.required !== false
+            ? "✗ missing"
+            : "○ optional";
+      return `| ${f.label} | \`${f.id}\` | ${status} |`;
+    })
     .join("\n");
 
-  const exampleJson: Record<string, string> = {};
-  for (const f of missing) {
-    exampleJson[f.id] = f.id === "deadline" ? "YYYY-MM-DD" : "<fill me>";
-  }
+  const missingSection =
+    missing && missing.length > 0
+      ? `## Missing Required Fields
 
-  return `# Intake request — ${offeringId}\n\n` +
-    `Job ID: **${ctx.jobId}**\n\n` +
-    `I can’t start real work yet because the request is missing required intake fields.\n\n` +
-    `## Missing fields\n\n${missingLines}\n\n` +
-    `## How to provide the missing info\n\n` +
-    `Please re-run / update the ACP job with serviceRequirements JSON including the fields above. Example:\n\n` +
-    "```json\n" +
-    JSON.stringify(exampleJson, null, 2) +
-    "\n```\n\n" +
-    `## Local delivery folder\n\n` +
-    `A local folder was created for this job at:\n\n` +
-    `- \`${deliveryDir}\`\n\n` +
-    `This job is currently blocked on intake.\n`;
+The following required fields are missing and must be provided before delivery can proceed:
+
+${missing
+  .map(
+    (f) =>
+      `- **${f.label}** (\`${f.id}\`)${f.description ? ` — ${f.description}` : ""}`
+  )
+  .join("\n")}
+
+### How to provide missing info
+
+Update the ACP job with serviceRequirements JSON including the fields above. Example:
+
+\`\`\`json
+${JSON.stringify(
+  Object.fromEntries(
+    missing.map((f) => [f.id, f.id === "deadline" ? "YYYY-MM-DD" : "<value>"])
+  ),
+  null,
+  2
+)}
+\`\`\`
+`
+      : "";
+
+  return `# Intake Record — ${offeringId}
+
+**Job ID:** ${ctx.jobId}  
+**Generated:** ${now}  
+**Status:** ${missing && missing.length > 0 ? "BLOCKED — Missing required fields" : "COMPLETE — Ready for delivery"}
+
+## Client Information
+
+| Field | Value |
+|-------|-------|
+| Client Address | ${ctx.clientAddress ?? "(not provided)"} |
+| Provider Address | ${ctx.providerAddress ?? "(not provided)"} |
+| Offering Name | ${ctx.offeringName} |
+
+## Intake Fields
+
+| Field | Key | Status |
+|-------|-----|--------|
+${intakeRows}
+
+${missingSection}## Field Details
+
+${requiredFields
+  .map(
+    (f) => `### ${f.label} (\`${f.id}\`)
+
+- **Required:** ${f.required !== false ? "Yes" : "No"}
+- **Description:** ${f.description ?? "(none)"}
+- **Aliases checked:** ${f.aliases?.join(", ") ?? "(none)"}
+- **Value received:** ${
+  intake[f.id] !== undefined
+    ? "`" +
+      String(intake[f.id]).slice(0, 100) +
+      (String(intake[f.id]).length > 100 ? "..." : "") +
+      "`"
+    : "(none)"
+}
+`
+  )
+  .join("\n")}
+
+## Delivery Folder
+
+\`${deliveryDir}\`
+`;
+}
+
+function buildManifest(args: {
+  ctx: JobContext;
+  offeringId: string;
+  deliverableType: string;
+  intake: Record<string, IntakeValue>;
+  missing: IntakeFieldSpec[];
+  files: string[];
+}): object {
+  const now = new Date().toISOString();
+  return {
+    schemaVersion: "1.0.0",
+    generatedAt: now,
+    job: {
+      jobId: args.ctx.jobId,
+      offeringName: args.ctx.offeringName,
+      clientAddress: args.ctx.clientAddress ?? null,
+      providerAddress: args.ctx.providerAddress ?? null,
+    },
+    offering: {
+      id: args.offeringId,
+      deliverableType: args.deliverableType,
+    },
+    intake: {
+      status: args.missing.length > 0 ? "incomplete" : "complete",
+      fields: Object.entries(args.intake).map(([key, value]) => ({
+        id: key,
+        value: value ?? null,
+        provided: value !== undefined,
+      })),
+      missingFields: args.missing.map((f) => f.id),
+    },
+    delivery: {
+      status: args.missing.length > 0 ? "blocked" : "delivered",
+      artifacts: args.files,
+    },
+  };
 }
 
 async function writeText(filePath: string, content: string): Promise<void> {
@@ -166,6 +293,42 @@ async function writeText(filePath: string, content: string): Promise<void> {
 async function writeJson(filePath: string, value: unknown): Promise<void> {
   const content = JSON.stringify(value, null, 2);
   await writeText(filePath, content + "\n");
+}
+
+async function writeTextAlso(
+  deliveryDir: string,
+  canonicalName: string,
+  alsoName: string | undefined,
+  content: string
+): Promise<string[]> {
+  const files: string[] = [];
+  await writeText(path.join(deliveryDir, canonicalName), content);
+  files.push(canonicalName);
+
+  if (alsoName && alsoName !== canonicalName) {
+    await writeText(path.join(deliveryDir, alsoName), content);
+    files.push(alsoName);
+  }
+
+  return files;
+}
+
+async function writeJsonAlso(
+  deliveryDir: string,
+  canonicalName: string,
+  alsoName: string | undefined,
+  value: unknown
+): Promise<string[]> {
+  const files: string[] = [];
+  await writeJson(path.join(deliveryDir, canonicalName), value);
+  files.push(canonicalName);
+
+  if (alsoName && alsoName !== canonicalName) {
+    await writeJson(path.join(deliveryDir, alsoName), value);
+    files.push(alsoName);
+  }
+
+  return files;
 }
 
 export async function dispatchOfferingDelivery(
@@ -187,8 +350,25 @@ export async function dispatchOfferingDelivery(
     if ((f.required ?? true) && value === undefined) missing.push(f);
   }
 
-  // Always write a minimal job snapshot for debugging.
-  await writeJson(path.join(deliveryDir, "JOB_SNAPSHOT.json"), {
+  // Always write intake request
+  const intakeMd = buildIntakeMarkdown({
+    ctx,
+    offeringId: opts.offeringId,
+    deliveryDir,
+    intake,
+    requiredFields: opts.requiredFields,
+    missing: missing.length > 0 ? missing : undefined,
+  });
+
+  const intakeFiles = await writeTextAlso(
+    deliveryDir,
+    CANONICAL_INTAKE_FILE,
+    opts.intakeFileName,
+    intakeMd
+  );
+
+  // Always write a job snapshot for debugging
+  await writeJson(path.join(deliveryDir, CANONICAL_SNAPSHOT_FILE), {
     generatedAt: new Date().toISOString(),
     job: {
       jobId: ctx.jobId,
@@ -199,21 +379,24 @@ export async function dispatchOfferingDelivery(
     offeringId: opts.offeringId,
     intake,
     missing: missing.map((m) => m.id),
-    // NOTE: request may be large (e.g., pasted code). We store it on disk but
-    // do not echo it to stdout/logs.
     request,
   });
 
   if (missing.length > 0) {
-    const intakeMd = buildIntakeRequestMarkdown({
+    const files = Array.from(
+      new Set([...intakeFiles, CANONICAL_SNAPSHOT_FILE, CANONICAL_MANIFEST_FILE])
+    );
+
+    const manifest = buildManifest({
       ctx,
       offeringId: opts.offeringId,
-      deliveryDir,
+      deliverableType: opts.deliverableType,
       intake,
       missing,
+      files,
     });
 
-    await writeText(path.join(deliveryDir, "INTAKE_REQUEST.md"), intakeMd);
+    await writeJson(path.join(deliveryDir, CANONICAL_MANIFEST_FILE), manifest);
 
     return {
       deliverable: {
@@ -228,23 +411,31 @@ export async function dispatchOfferingDelivery(
             label: f.label,
             description: f.description ?? null,
           })),
-          message:
-            "Missing required intake fields. See INTAKE_REQUEST.md in the local delivery folder.",
+          message: `Missing required intake fields. See ${CANONICAL_INTAKE_FILE} in the local delivery folder.`,
+          artifacts: {
+            intake: CANONICAL_INTAKE_FILE,
+            manifest: CANONICAL_MANIFEST_FILE,
+            snapshot: CANONICAL_SNAPSHOT_FILE,
+            alsoWritten: {
+              intake: intakeFiles.filter((f) => f !== CANONICAL_INTAKE_FILE),
+            },
+          },
         },
       },
     };
   }
 
-  // Intake complete — generate artifacts.
-  const reportFileName = opts.reportFileName ?? "REPORT.md";
-  const pipelineFileName = opts.pipelineFileName ?? "PIPELINE.md";
-  const findingsFileName = opts.findingsFileName ?? "INITIAL_FINDINGS.json";
-
+  // Intake complete — generate real delivery artifacts
   const findings = opts.generateFindings
     ? opts.generateFindings({ request, ctx, intake })
     : { note: "No automated findings generator configured for this offering." };
 
-  await writeJson(path.join(deliveryDir, findingsFileName), findings);
+  const findingsFiles = await writeJsonAlso(
+    deliveryDir,
+    CANONICAL_FINDINGS_FILE,
+    opts.findingsFileName,
+    findings
+  );
 
   const report = opts.buildReport({
     request,
@@ -253,26 +444,66 @@ export async function dispatchOfferingDelivery(
     findings,
     deliveryDir,
   });
-  await writeText(path.join(deliveryDir, reportFileName), report);
+
+  const reportFiles = await writeTextAlso(
+    deliveryDir,
+    CANONICAL_REPORT_FILE,
+    opts.reportFileName,
+    report
+  );
 
   const pipeline = opts.buildPipeline({ request, ctx, intake, deliveryDir });
-  await writeText(path.join(deliveryDir, pipelineFileName), pipeline);
+
+  const pipelineFiles = await writeTextAlso(
+    deliveryDir,
+    CANONICAL_PIPELINE_FILE,
+    opts.pipelineFileName,
+    pipeline
+  );
+
+  const files = Array.from(
+    new Set([
+      ...intakeFiles,
+      ...reportFiles,
+      ...pipelineFiles,
+      ...findingsFiles,
+      CANONICAL_SNAPSHOT_FILE,
+      CANONICAL_MANIFEST_FILE,
+    ])
+  );
+
+  const manifest = buildManifest({
+    ctx,
+    offeringId: opts.offeringId,
+    deliverableType: opts.deliverableType,
+    intake,
+    missing,
+    files,
+  });
+
+  await writeJson(path.join(deliveryDir, CANONICAL_MANIFEST_FILE), manifest);
 
   return {
     deliverable: {
       type: opts.deliverableType,
       value: {
         status: "delivered",
-        note:
-          "Draft/skeleton artifacts written. This is not a completed audit/implementation unless explicitly stated.",
         offeringId: opts.offeringId,
         jobId: ctx.jobId,
         deliveryDir,
-        files: {
-          report: reportFileName,
-          pipeline: pipelineFileName,
-          findings: findingsFileName,
-          snapshot: "JOB_SNAPSHOT.json",
+        artifacts: {
+          intake: CANONICAL_INTAKE_FILE,
+          report: CANONICAL_REPORT_FILE,
+          findings: CANONICAL_FINDINGS_FILE,
+          pipeline: CANONICAL_PIPELINE_FILE,
+          manifest: CANONICAL_MANIFEST_FILE,
+          snapshot: CANONICAL_SNAPSHOT_FILE,
+          alsoWritten: {
+            intake: intakeFiles.filter((f) => f !== CANONICAL_INTAKE_FILE),
+            report: reportFiles.filter((f) => f !== CANONICAL_REPORT_FILE),
+            findings: findingsFiles.filter((f) => f !== CANONICAL_FINDINGS_FILE),
+            pipeline: pipelineFiles.filter((f) => f !== CANONICAL_PIPELINE_FILE),
+          },
         },
       },
     },
