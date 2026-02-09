@@ -14,7 +14,7 @@ import { connectAcpSocket } from "./acpSocket";
 import { acceptOrRejectJob, requestPayment, deliverJob } from "./sellerApi";
 import { loadOffering, listOfferings } from "./offerings";
 import { AcpJobPhase, type AcpJobEventData } from "./types";
-import type { ExecuteJobResult } from "./offeringTypes";
+import type { ExecuteJobResult } from "./offeringTypes.js";
 import { getMyAgentInfo } from "../../scripts/wallet";
 import {
   checkForExistingProcess,
@@ -65,16 +65,24 @@ const ACP_URL = "https://acpx.virtuals.io";
  * negotiation-phase memo's content may include it.
  */
 function resolveOfferingName(data: AcpJobEventData): string | undefined {
+  const fromContext = data.context?.jobOfferingName;
+  if (typeof fromContext === "string" && fromContext.trim()) return fromContext;
+
   try {
     const negotiationMemo = data.memos.find(
       (m) => m.nextPhase === AcpJobPhase.NEGOTIATION
     );
     if (negotiationMemo) {
-      return JSON.parse(negotiationMemo.content).name;
+      const parsed = JSON.parse(negotiationMemo.content);
+      if (typeof parsed?.name === "string" && parsed.name.trim()) {
+        return parsed.name;
+      }
     }
-  } catch (error) {
-    return undefined;
+  } catch {
+    // ignore
   }
+
+  return undefined;
 }
 
 /**
@@ -191,7 +199,14 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
           `[seller] Executing offering "${offeringName}" for job ${jobId} (TRANSACTION phase)...`
         );
         const result: ExecuteJobResult = await handlers.executeJob(
-          requirements
+          requirements,
+          {
+            jobId,
+            offeringName,
+            clientAddress: data.clientAddress,
+            providerAddress: data.providerAddress,
+            acpContext: data.context,
+          }
         );
 
         await deliverJob(jobId, {
