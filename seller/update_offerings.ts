@@ -135,7 +135,7 @@ function validateHandlers(
   if (!hasExecuteJob) {
     result.valid = false;
     result.errors.push(
-      'handlers.ts must export an "executeJob" function. Expected signature: async function executeJob(request: any): Promise<string>'
+      'handlers.ts must export an "executeJob" function. Expected signature: async function executeJob(requirements: any, ctx: JobContext): Promise<ExecuteJobResult>'
     );
   }
 

@@ -144,10 +144,10 @@ function renderFindingsMarkdown(findings: HeuristicFinding[]): string {
 }
 
 export async function executeJob(
-  request: any,
+  requirements: any,
   ctx: JobContext
 ): Promise<ExecuteJobResult> {
-  return await dispatchOfferingDelivery(request ?? {}, ctx, {
+  return await dispatchOfferingDelivery(requirements ?? {}, ctx, {
     offeringId: "smart_contract_security_audit",
     deliverableType: "audit_report_skeleton",
     reportFileName: "AUDIT_REPORT.md",
@@ -186,12 +186,12 @@ export async function executeJob(
         required: false,
       },
     ],
-    generateFindings: ({ request, intake }) => {
+    generateFindings: ({ requirements, intake }) => {
       const contractSource =
         typeof intake.contractSource === "string"
           ? intake.contractSource
-          : typeof request.contractSource === "string"
-            ? request.contractSource
+          : typeof requirements.contractSource === "string"
+            ? requirements.contractSource
             : "";
 
       if (!contractSource.trim()) {

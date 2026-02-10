@@ -2,10 +2,10 @@ import type { ExecuteJobResult, JobContext } from "../../runtime/offeringTypes.j
 import { dispatchOfferingDelivery } from "../../runtime/deliveryDispatcher.js";
 
 export async function executeJob(
-  request: any,
+  requirements: any,
   ctx: JobContext
 ): Promise<ExecuteJobResult> {
-  return await dispatchOfferingDelivery(request ?? {}, ctx, {
+  return await dispatchOfferingDelivery(requirements ?? {}, ctx, {
     offeringId: "openclaw_skill_development",
     deliverableType: "skill_package_skeleton",
     reportFileName: "SKILL_SPEC.md",
@@ -35,14 +35,14 @@ export async function executeJob(
         required: false,
       },
     ],
-    generateFindings: ({ request, intake }) => {
+    generateFindings: ({ requirements, intake }) => {
       const language =
-        typeof request.language === "string" && request.language.trim()
-          ? request.language.trim()
+        typeof requirements.language === "string" && requirements.language.trim()
+          ? requirements.language.trim()
           : "bash + python";
 
       const examples =
-        typeof request.examples === "string" ? request.examples.trim() : "";
+        typeof requirements.examples === "string" ? requirements.examples.trim() : "";
 
       return {
         method: "intake_structuring",
@@ -67,19 +67,19 @@ export async function executeJob(
         ],
       };
     },
-    buildReport: ({ request, ctx, intake, deliveryDir }) => {
+    buildReport: ({ requirements, ctx, intake, deliveryDir }) => {
       const language =
-        typeof request.language === "string" && request.language.trim()
-          ? request.language.trim()
+        typeof requirements.language === "string" && requirements.language.trim()
+          ? requirements.language.trim()
           : "bash + python";
 
       const skillDescription =
-        typeof request.skillDescription === "string"
-          ? request.skillDescription.trim()
+        typeof requirements.skillDescription === "string"
+          ? requirements.skillDescription.trim()
           : "";
 
       const examples =
-        typeof request.examples === "string" ? request.examples.trim() : "";
+        typeof requirements.examples === "string" ? requirements.examples.trim() : "";
 
       const excerpt = skillDescription
         ? skillDescription.length > 800

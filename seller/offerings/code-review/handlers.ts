@@ -111,10 +111,10 @@ function renderFindingsMd(findings: ReviewFinding[]): string {
 }
 
 export async function executeJob(
-  request: any,
+  requirements: any,
   ctx: JobContext
 ): Promise<ExecuteJobResult> {
-  return await dispatchOfferingDelivery(request ?? {}, ctx, {
+  return await dispatchOfferingDelivery(requirements ?? {}, ctx, {
     offeringId: "code_review_and_optimization",
     deliverableType: "code_review_report_skeleton",
     reportFileName: "CODE_REVIEW_REPORT.md",
@@ -150,12 +150,12 @@ export async function executeJob(
         required: false,
       },
     ],
-    generateFindings: ({ request, intake }) => {
+    generateFindings: ({ requirements, intake }) => {
       const codeSource =
-        typeof request.codeSource === "string" ? request.codeSource : "";
+        typeof requirements.codeSource === "string" ? requirements.codeSource : "";
       const language =
-        typeof request.language === "string" && request.language.trim()
-          ? request.language.trim()
+        typeof requirements.language === "string" && requirements.language.trim()
+          ? requirements.language.trim()
           : String(intake.language ?? "auto-detect");
 
       if (!codeSource.trim()) {

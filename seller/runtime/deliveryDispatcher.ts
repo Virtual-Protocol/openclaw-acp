@@ -47,10 +47,10 @@ export interface IntakeFieldSpec {
   description?: string;
   /** Whether this field blocks delivery when missing. Default: true. */
   required?: boolean;
-  /** Extra request keys we will also check (aliases/synonyms). */
+  /** Extra requirements keys we will also check (aliases/synonyms). */
   aliases?: string[];
   /** Optional custom resolver (wins over id/aliases). */
-  resolve?: (request: Record<string, any>) => IntakeValue;
+  resolve?: (requirements: Record<string, any>) => IntakeValue;
 }
 
 export interface DeliveryDispatchOptions {
@@ -77,7 +77,7 @@ export interface DeliveryDispatchOptions {
 
   /** Builds the delivery report markdown (REPORT.md content). */
   buildReport: (args: {
-    request: Record<string, any>;
+    requirements: Record<string, any>;
     ctx: JobContext;
     intake: Record<string, IntakeValue>;
     findings: unknown;
@@ -86,7 +86,7 @@ export interface DeliveryDispatchOptions {
 
   /** Builds a pipeline / runbook markdown (PIPELINE.md content). */
   buildPipeline: (args: {
-    request: Record<string, any>;
+    requirements: Record<string, any>;
     ctx: JobContext;
     intake: Record<string, IntakeValue>;
     deliveryDir: string;
@@ -94,7 +94,7 @@ export interface DeliveryDispatchOptions {
 
   /** Optional: produce findings (must be JSON-serializable). */
   generateFindings?: (args: {
-    request: Record<string, any>;
+    requirements: Record<string, any>;
     ctx: JobContext;
     intake: Record<string, IntakeValue>;
   }) => unknown;
@@ -129,18 +129,18 @@ function normalizeIntakeValue(value: unknown): IntakeValue {
 }
 
 function resolveIntakeField(
-  request: Record<string, any>,
+  requirements: Record<string, any>,
   field: IntakeFieldSpec
 ): IntakeValue {
   if (field.resolve) {
-    return normalizeIntakeValue(field.resolve(request));
+    return normalizeIntakeValue(field.resolve(requirements));
   }
 
-  const direct = normalizeIntakeValue(request[field.id]);
+  const direct = normalizeIntakeValue(requirements[field.id]);
   if (direct !== undefined) return direct;
 
   for (const alias of field.aliases ?? []) {
-    const v = normalizeIntakeValue(request[alias]);
+    const v = normalizeIntakeValue(requirements[alias]);
     if (v !== undefined) return v;
   }
 
@@ -332,7 +332,7 @@ async function writeJsonAlso(
 }
 
 export async function dispatchOfferingDelivery(
-  request: Record<string, any>,
+  requirements: Record<string, any>,
   ctx: JobContext,
   opts: DeliveryDispatchOptions
 ): Promise<ExecuteJobResult> {
@@ -345,7 +345,7 @@ export async function dispatchOfferingDelivery(
   const missing: IntakeFieldSpec[] = [];
 
   for (const f of opts.requiredFields) {
-    const value = resolveIntakeField(request, f);
+    const value = resolveIntakeField(requirements, f);
     intake[f.id] = value;
     if ((f.required ?? true) && value === undefined) missing.push(f);
   }
@@ -379,7 +379,7 @@ export async function dispatchOfferingDelivery(
     offeringId: opts.offeringId,
     intake,
     missing: missing.map((m) => m.id),
-    request,
+    requirements,
   });
 
   if (missing.length > 0) {
@@ -427,7 +427,7 @@ export async function dispatchOfferingDelivery(
 
   // Intake complete — generate real delivery artifacts
   const findings = opts.generateFindings
-    ? opts.generateFindings({ request, ctx, intake })
+    ? opts.generateFindings({ requirements, ctx, intake })
     : { note: "No automated findings generator configured for this offering." };
 
   const findingsFiles = await writeJsonAlso(
@@ -438,7 +438,7 @@ export async function dispatchOfferingDelivery(
   );
 
   const report = opts.buildReport({
-    request,
+    requirements,
     ctx,
     intake,
     findings,
@@ -452,7 +452,7 @@ export async function dispatchOfferingDelivery(
     report
   );
 
-  const pipeline = opts.buildPipeline({ request, ctx, intake, deliveryDir });
+  const pipeline = opts.buildPipeline({ requirements, ctx, intake, deliveryDir });
 
   const pipelineFiles = await writeTextAlso(
     deliveryDir,

@@ -2,10 +2,10 @@ import type { ExecuteJobResult, JobContext } from "../../runtime/offeringTypes.j
 import { dispatchOfferingDelivery } from "../../runtime/deliveryDispatcher.js";
 
 export async function executeJob(
-  request: any,
+  requirements: any,
   ctx: JobContext
 ): Promise<ExecuteJobResult> {
-  return await dispatchOfferingDelivery(request ?? {}, ctx, {
+  return await dispatchOfferingDelivery(requirements ?? {}, ctx, {
     offeringId: "base_defi_development",
     deliverableType: "defi_development_skeleton",
     reportFileName: "DEFI_SPEC.md",
@@ -46,10 +46,10 @@ export async function executeJob(
         required: false,
       },
     ],
-    generateFindings: ({ request }) => {
+    generateFindings: ({ requirements }) => {
       const contractType =
-        typeof request.contractType === "string" && request.contractType.trim()
-          ? request.contractType.trim()
+        typeof requirements.contractType === "string" && requirements.contractType.trim()
+          ? requirements.contractType.trim()
           : "custom";
 
       return {
@@ -66,15 +66,15 @@ export async function executeJob(
         ],
       };
     },
-    buildReport: ({ request, ctx, intake, deliveryDir }) => {
+    buildReport: ({ requirements, ctx, intake, deliveryDir }) => {
       const contractType =
-        typeof request.contractType === "string" && request.contractType.trim()
-          ? request.contractType.trim()
+        typeof requirements.contractType === "string" && requirements.contractType.trim()
+          ? requirements.contractType.trim()
           : "custom";
 
       const desc =
-        typeof request.projectDescription === "string"
-          ? request.projectDescription.trim()
+        typeof requirements.projectDescription === "string"
+          ? requirements.projectDescription.trim()
           : "";
       const excerpt = desc.length > 800 ? desc.slice(0, 800) + "…" : desc;
 

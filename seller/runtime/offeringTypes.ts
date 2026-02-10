@@ -40,19 +40,19 @@ export interface ExecuteJobResult {
  * The handler set every offering must / can export.
  *
  * Required:
- *   executeJob(request, ctx) => ExecuteJobResult
+ *   executeJob(requirements, ctx) => ExecuteJobResult
  *
  * Optional:
- *   validateRequirements(request) => boolean
- *   requestAdditionalFunds(request) => { amount, tokenAddress, recipient }
+ *   validateRequirements(requirements) => boolean
+ *   requestAdditionalFunds(requirements) => { amount, tokenAddress, recipient }
  */
 export interface OfferingHandlers {
   executeJob: (
-    request: Record<string, any>,
+    requirements: Record<string, any>,
     ctx: JobContext
   ) => Promise<ExecuteJobResult>;
-  validateRequirements?: (request: Record<string, any>) => boolean;
-  requestAdditionalFunds?: (request: Record<string, any>) => {
+  validateRequirements?: (requirements: Record<string, any>) => boolean;
+  requestAdditionalFunds?: (requirements: Record<string, any>) => {
     amount: number;
     tokenAddress: string;
     recipient: string;

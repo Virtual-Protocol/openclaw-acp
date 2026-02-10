@@ -2,10 +2,10 @@ import type { ExecuteJobResult, JobContext } from "../../runtime/offeringTypes.j
 import { dispatchOfferingDelivery } from "../../runtime/deliveryDispatcher.js";
 
 export async function executeJob(
-  request: any,
+  requirements: any,
   ctx: JobContext
 ): Promise<ExecuteJobResult> {
-  return await dispatchOfferingDelivery(request ?? {}, ctx, {
+  return await dispatchOfferingDelivery(requirements ?? {}, ctx, {
     offeringId: "ai_agent_liveness_integration",
     deliverableType: "liveness_integration_skeleton",
     reportFileName: "LIVENESS_PLAN.md",
@@ -55,14 +55,14 @@ export async function executeJob(
         },
       };
     },
-    buildReport: ({ request, ctx, intake, deliveryDir }) => {
+    buildReport: ({ requirements, ctx, intake, deliveryDir }) => {
       const endpoint =
-        typeof request.agentEndpoint === "string" && request.agentEndpoint.trim()
-          ? request.agentEndpoint.trim()
+        typeof requirements.agentEndpoint === "string" && requirements.agentEndpoint.trim()
+          ? requirements.agentEndpoint.trim()
           : "(not provided)";
       const reqs =
-        typeof request.monitoringRequirements === "string"
-          ? request.monitoringRequirements.trim()
+        typeof requirements.monitoringRequirements === "string"
+          ? requirements.monitoringRequirements.trim()
           : "";
 
       return (

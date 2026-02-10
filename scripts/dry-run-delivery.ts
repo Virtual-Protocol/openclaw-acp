@@ -10,7 +10,7 @@ function parseMode(args: string[]): Mode {
   return args.includes("--needs-info") ? "needs-info" : "complete";
 }
 
-function sampleRequest(offeringId: string, mode: Mode): Record<string, any> {
+function sampleRequirements(offeringId: string, mode: Mode): Record<string, any> {
   switch (offeringId) {
     case "smart_contract_security_audit":
       return mode === "needs-info"
@@ -85,9 +85,9 @@ function sampleRequest(offeringId: string, mode: Mode): Record<string, any> {
 async function runOne(offeringId: string, jobId: number, mode: Mode) {
   const { handlers } = await loadOffering(offeringId);
 
-  const request = sampleRequest(offeringId, mode);
+  const requirements = sampleRequirements(offeringId, mode);
 
-  const result = await handlers.executeJob(request, {
+  const result = await handlers.executeJob(requirements, {
     jobId,
     offeringName: offeringId,
     clientAddress: "0x0000000000000000000000000000000000000000",

@@ -2,10 +2,10 @@ import type { ExecuteJobResult, JobContext } from "../../runtime/offeringTypes.j
 import { dispatchOfferingDelivery } from "../../runtime/deliveryDispatcher.js";
 
 export async function executeJob(
-  request: any,
+  requirements: any,
   ctx: JobContext
 ): Promise<ExecuteJobResult> {
-  return await dispatchOfferingDelivery(request ?? {}, ctx, {
+  return await dispatchOfferingDelivery(requirements ?? {}, ctx, {
     offeringId: "typescript_api_development",
     deliverableType: "api_delivery_skeleton",
     reportFileName: "API_SPEC.md",
@@ -46,14 +46,14 @@ export async function executeJob(
         required: false,
       },
     ],
-    generateFindings: ({ request, intake }) => {
+    generateFindings: ({ requirements, intake }) => {
       const framework =
-        typeof request.framework === "string" && request.framework.trim()
-          ? request.framework.trim()
+        typeof requirements.framework === "string" && requirements.framework.trim()
+          ? requirements.framework.trim()
           : "Hono";
       const database =
-        typeof request.database === "string" && request.database.trim()
-          ? request.database.trim()
+        typeof requirements.database === "string" && requirements.database.trim()
+          ? requirements.database.trim()
           : "PostgreSQL";
 
       return {
@@ -74,18 +74,18 @@ export async function executeJob(
         ],
       };
     },
-    buildReport: ({ request, ctx, intake, deliveryDir }) => {
+    buildReport: ({ requirements, ctx, intake, deliveryDir }) => {
       const framework =
-        typeof request.framework === "string" && request.framework.trim()
-          ? request.framework.trim()
+        typeof requirements.framework === "string" && requirements.framework.trim()
+          ? requirements.framework.trim()
           : "Hono";
       const database =
-        typeof request.database === "string" && request.database.trim()
-          ? request.database.trim()
+        typeof requirements.database === "string" && requirements.database.trim()
+          ? requirements.database.trim()
           : "PostgreSQL";
 
       const apiDescription =
-        typeof request.apiDescription === "string" ? request.apiDescription.trim() : "";
+        typeof requirements.apiDescription === "string" ? requirements.apiDescription.trim() : "";
       const excerpt = apiDescription.length > 800 ? apiDescription.slice(0, 800) + "…" : apiDescription;
 
       return (

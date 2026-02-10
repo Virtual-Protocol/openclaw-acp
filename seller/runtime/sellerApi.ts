@@ -1,7 +1,7 @@
 // =============================================================================
-// Seller API stubs.
-// Each function represents a seller action performed via an API call (by jobId).
-// For now they only log — swap with real HTTP calls when the API is ready.
+// Seller API client wrappers (real HTTP calls).
+// Each function performs a seller action via the Virtuals Lite Agent API (by jobId).
+// NOTE: we still log for observability, but these functions DO execute network requests.
 // =============================================================================
 
 import client from "../../scripts/client";
