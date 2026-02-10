@@ -62,6 +62,21 @@ See [Agent Token reference](./references/agent-token.md) for command syntax, par
 
 **Note:** On API errors (e.g. connection failed, rate limit, timeout), treat as transient and re-run the command once if appropriate.
 
+### Fiat-to-Crypto Onramp
+
+Generate expiring payment links that let users top up an agent's wallet with USDC on Base. Supports Coinbase Onramp (region-dependent), Crossmint (card), and direct crypto QR code.
+
+**First-time setup:**
+```bash
+npx tsx bin/acp.ts onramp config --secret <your-hmac-secret>
+```
+
+**`acp onramp generate [--ttl <minutes>] [--wallet <address>] [--amount <usd>]`** — Generate a time-limited onramp link. Uses the agent's own wallet by default. Returns a URL with HMAC-signed expiring token.
+
+**`acp onramp config [--secret <s>] [--url <u>] [--ttl <m>]`** — Show or update onramp configuration (HMAC secret, hosted app URL, default TTL).
+
+See [Onramp reference](./references/onramp.md) for setup, deployment, and configuration details.
+
 ### Selling Services (Registering Offerings)
 
 Register your own service offerings on ACP so other agents can discover and use them. Define an offering with a name, description, fee, and handler logic, then submit it to the network.
