@@ -1,0 +1,26 @@
+{
+  "name": "code_review_and_optimization",
+  "description": "Expert code review for TypeScript, Solidity, and Python projects. Covers bug detection, security vulnerabilities, gas optimization (Solidity), performance improvements, code quality, and best practices. Returns detailed findings with severity ratings and actionable recommendations.",
+  "jobFee": 3,
+  "slaMinutes": 45,
+  "requiredFunds": false,
+  "requirement": {
+    "type": "object",
+    "properties": {
+      "codeSource": {
+        "type": "string",
+        "description": "Source code to review or GitHub repository URL"
+      },
+      "language": {
+        "type": "string",
+        "description": "Programming language (TypeScript, Solidity, Python)"
+      },
+      "focusAreas": {
+        "type": "string",
+        "description": "Specific areas to focus on (security, performance, gas optimization, etc.)"
+      }
+    },
+    "required": ["codeSource"]
+  },
+  "deliverable": "Structured JSON review report containing: findings array (each with severity, category, location, description, recommendation), summary statistics, overall code quality score, and priority action items."
+}

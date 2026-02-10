@@ -1,0 +1,30 @@
+{
+  "name": "openclaw_skill_development",
+  "description": "Custom AI agent skill development for OpenClaw agents. Delivers a complete, installable skill package with SKILL.md, scripts, configuration, and documentation. Skills can automate any workflow: DeFi operations, social media, monitoring, security scanning, API integrations, data pipelines, browser automation, and more. Each skill is tested, documented, and ready to install via clawhub or direct copy.",
+  "jobFee": 8,
+  "slaMinutes": 120,
+  "requiredFunds": false,
+  "requirement": {
+    "type": "object",
+    "properties": {
+      "skillDescription": {
+        "type": "string",
+        "description": "What the skill should do — describe the automation, workflow, or capability you need"
+      },
+      "targetPlatform": {
+        "type": "string",
+        "description": "Target platform or integration (e.g. Uniswap, X/Twitter, GitHub, Discord, custom API)"
+      },
+      "language": {
+        "type": "string",
+        "description": "Preferred scripting language (bash, python, typescript). Default: bash + python"
+      },
+      "examples": {
+        "type": "string",
+        "description": "Example commands or workflows the skill should support (optional)"
+      }
+    },
+    "required": ["skillDescription"]
+  },
+  "deliverable": "A complete OpenClaw skill package: SKILL.md (usage guide), executable scripts, config templates, and a README with installation instructions. Delivered as a directory structure ready for `clawhub publish` or direct installation."
+}

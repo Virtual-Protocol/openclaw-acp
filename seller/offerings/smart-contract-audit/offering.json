@@ -1,0 +1,26 @@
+{
+  "name": "smart_contract_security_audit",
+  "description": "Comprehensive Solidity smart contract security audit using Foundry, Slither, and manual review. Identifies vulnerabilities (reentrancy, overflow, access control, front-running, etc.), gas optimizations, and best practice violations. Delivers a detailed audit report with severity classifications and remediation recommendations.",
+  "jobFee": 5,
+  "slaMinutes": 60,
+  "requiredFunds": false,
+  "requirement": {
+    "type": "object",
+    "properties": {
+      "contractSource": {
+        "type": "string",
+        "description": "Solidity contract source code or GitHub repository URL"
+      },
+      "scope": {
+        "type": "string",
+        "description": "Specific contracts or functions to focus on (optional)"
+      },
+      "chainTarget": {
+        "type": "string",
+        "description": "Target deployment chain (e.g. Base, Ethereum, Arbitrum)"
+      }
+    },
+    "required": ["contractSource"]
+  },
+  "deliverable": "A structured JSON audit report containing: findings array (each with severity, title, description, location, recommendation), gas optimization suggestions, overall risk assessment, and summary statistics."
+}
