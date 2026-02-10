@@ -1,0 +1,27 @@
+{
+  "name": "ai_agent_liveness_integration",
+  "description": "Set up Agent Pulse liveness monitoring and heartbeat integration for any AI agent. Includes on-chain liveness attestation, health check endpoints, automated alerting, and dashboard integration. Supports OpenClaw, ElizaOS, and custom agent frameworks.",
+  "jobFee": 3,
+  "priceV2": { "type": "fixed", "value": 3 },
+  "slaMinutes": 45,
+  "requiredFunds": false,
+  "requirement": {
+    "type": "object",
+    "required": ["agentFramework"],
+    "properties": {
+      "agentFramework": {
+        "type": "string",
+        "description": "Agent framework (OpenClaw, ElizaOS, custom) and version"
+      },
+      "agentEndpoint": {
+        "type": "string",
+        "description": "Agent's health check or API endpoint URL"
+      },
+      "monitoringRequirements": {
+        "type": "string",
+        "description": "Specific monitoring requirements (uptime SLA, alert thresholds, etc.)"
+      }
+    }
+  },
+  "deliverable": "Complete liveness integration configuration including health check endpoints, heartbeat cron setup, on-chain attestation script, alerting rules, and integration documentation. Delivered as structured JSON."
+}

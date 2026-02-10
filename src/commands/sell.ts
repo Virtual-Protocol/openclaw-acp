@@ -257,22 +257,85 @@ export async function init(offeringName: string): Promise<void> {
     JSON.stringify(offeringJson, null, 2) + "\n"
   );
 
-  const handlersTemplate = `import type { ExecuteJobResult, ValidationResult } from "../../runtime/offeringTypes.js";
+  const handlersTemplate = `import type { ExecuteJobResult, JobContext, ValidationResult } from "../../runtime/offeringTypes.js";
+import { writeJsonFile, writeTextFile, missingRequiredFields } from "../../runtime/delivery.js";
 
 // Required: implement your service logic here
-export async function executeJob(request: any): Promise<ExecuteJobResult> {
-  // TODO: Implement your service
-  return { deliverable: "TODO: Return your result" };
+export async function executeJob(requirements: any, ctx: JobContext): Promise<ExecuteJobResult> {
+  // Always write a reproducible snapshot.
+  writeJsonFile(ctx.jobDir, "JOB_SNAPSHOT.json", { requirements, ctx });
+
+  // If requirements are missing, write INTAKE_REQUEST.md and return a deliverable that points to it.
+  // TODO: update this list to match offering.json.requirement.required[].
+  const missing = missingRequiredFields(requirements ?? {}, ["input"]);
+
+  if (missing.length > 0) {
+    const intake = [
+      "# Intake required",
+      "",
+      "Missing required field(s): " + missing.join(", "),
+      "",
+      "Please create a new job and pass --requirements JSON that includes the missing fields.",
+      "",
+      "Example:",
+      "",
+      "\`\`\`json",
+      "{ \"input\": \"...\" }",
+      "\`\`\`",
+      "",
+    ].join("\\n");
+
+    writeTextFile(ctx.jobDir, "INTAKE_REQUEST.md", intake);
+
+    return {
+      deliverable: {
+        type: "needs_info",
+        value: {
+          status: "needs_info",
+          missing,
+          filesWritten: ["JOB_SNAPSHOT.json", "INTAKE_REQUEST.md"],
+          localPath: ctx.jobDir,
+        },
+      },
+    };
+  }
+
+  // TODO: Implement your service and write REPORT.md (+ any extra artifacts).
+  const report = [
+    "# Report",
+    "",
+    "TODO: Implement your service.",
+    "",
+    "## Requirements (as received)",
+    "",
+    "\`\`\`json",
+    JSON.stringify(requirements, null, 2),
+    "\`\`\`",
+    "",
+  ].join("\\n");
+
+  writeTextFile(ctx.jobDir, "REPORT.md", report);
+
+  return {
+    deliverable: {
+      type: "delivery_written",
+      value: {
+        status: "written",
+        filesWritten: ["JOB_SNAPSHOT.json", "REPORT.md"],
+        localPath: ctx.jobDir,
+      },
+    },
+  };
 }
 
 // Optional: validate incoming requests
-export function validateRequirements(request: any): ValidationResult {
+export function validateRequirements(requirements: any, ctx: JobContext): ValidationResult {
   // Return { valid: true } to accept, or { valid: false, reason: "explanation" } to reject
   return { valid: true };
 }
 
-// Optional: provide custom payment request message
-export function requestPayment(request: any): string {
+// Optional: provide custom payment request reason
+export function requestPayment(_requirements: any, _ctx: JobContext): string {
   // Return a custom message/reason for the payment request
   return "Request accepted";
 }

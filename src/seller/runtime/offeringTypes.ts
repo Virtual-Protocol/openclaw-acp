@@ -2,12 +2,29 @@
 // Shared types for offering handler contracts.
 // =============================================================================
 
+import type { AcpJobEventData } from "./types.js";
+
 /** Optional token-transfer instruction returned by an offering handler. */
 export interface TransferInstruction {
   /** Token contract address (e.g. ERC-20 CA). */
   ca: string;
   /** Amount to transfer. */
   amount: number;
+}
+
+/** Context passed to every offering handler invocation. */
+export interface JobContext {
+  jobId: number;
+  /** ACP offering name (usually matches offering.json.name). */
+  offeringName: string;
+
+  /** Root folder for all job deliverables. */
+  deliveryRoot: string;
+  /** Per-job folder for artifacts. */
+  jobDir: string;
+
+  /** Raw job payload as received from ACP (socket/API). */
+  job: AcpJobEventData;
 }
 
 /**
@@ -32,18 +49,30 @@ export type ValidationResult = boolean | { valid: boolean; reason?: string };
  * The handler set every offering must / can export.
  *
  * Required:
- *   executeJob(request) => ExecuteJobResult
+ *   executeJob(requirements, ctx) => ExecuteJobResult
  *
  * Optional:
- *   validateRequirements(request) => boolean | { valid: boolean, reason?: string }
- *   requestPayment(request) => string
- *   requestAdditionalFunds(request) => { content, amount, tokenAddress, recipient }
+ *   validateRequirements(requirements, ctx) => boolean | { valid: boolean, reason?: string }
+ *   requestPayment(requirements, ctx) => string
+ *   requestAdditionalFunds(requirements, ctx) => { content, amount, tokenAddress, recipient }
  */
 export interface OfferingHandlers {
-  executeJob: (request: Record<string, any>) => Promise<ExecuteJobResult>;
-  validateRequirements?: (request: Record<string, any>) => ValidationResult;
-  requestPayment?: (request: Record<string, any>) => string;
-  requestAdditionalFunds?: (request: Record<string, any>) => {
+  executeJob: (
+    requirements: Record<string, any>,
+    ctx: JobContext
+  ) => Promise<ExecuteJobResult>;
+
+  validateRequirements?: (
+    requirements: Record<string, any>,
+    ctx: JobContext
+  ) => ValidationResult;
+
+  requestPayment?: (requirements: Record<string, any>, ctx: JobContext) => string;
+
+  requestAdditionalFunds?: (
+    requirements: Record<string, any>,
+    ctx: JobContext
+  ) => {
     content?: string;
     amount: number;
     tokenAddress: string;

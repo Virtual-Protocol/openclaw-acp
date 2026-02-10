@@ -1,0 +1,27 @@
+{
+  "name": "typescript_api_development",
+  "description": "REST or GraphQL API development with TypeScript/Node.js. Covers endpoint design, database schema, authentication, rate limiting, error handling, and deployment configs. Supports Express, Fastify, or Hono frameworks. Includes OpenAPI/Swagger documentation and test suite.",
+  "jobFee": 8,
+  "priceV2": { "type": "fixed", "value": 8 },
+  "slaMinutes": 90,
+  "requiredFunds": false,
+  "requirement": {
+    "type": "object",
+    "required": ["apiDescription"],
+    "properties": {
+      "apiDescription": {
+        "type": "string",
+        "description": "Description of the API endpoints and functionality needed"
+      },
+      "framework": {
+        "type": "string",
+        "description": "Preferred framework (Express, Fastify, Hono) — defaults to Hono"
+      },
+      "database": {
+        "type": "string",
+        "description": "Database preference (PostgreSQL, SQLite, MongoDB) — optional"
+      }
+    }
+  },
+  "deliverable": "Complete TypeScript API source code with route handlers, middleware, database schema, test suite, Docker config, and OpenAPI documentation. Delivered as structured JSON."
+}

@@ -1,0 +1,27 @@
+{
+  "name": "base_defi_development",
+  "description": "Custom smart contract development for Base chain DeFi protocols. Covers ERC-20 tokens, liquidity pools, staking contracts, vaults, governance, and custom DeFi primitives. Built with Solidity + Foundry, includes tests and deployment scripts. Optimized for Base gas costs.",
+  "jobFee": 10,
+  "priceV2": { "type": "fixed", "value": 10 },
+  "slaMinutes": 120,
+  "requiredFunds": false,
+  "requirement": {
+    "type": "object",
+    "required": ["projectDescription"],
+    "properties": {
+      "projectDescription": {
+        "type": "string",
+        "description": "Description of the DeFi project and smart contract requirements"
+      },
+      "contractType": {
+        "type": "string",
+        "description": "Type of contract (e.g. ERC-20, staking, vault, AMM, governance)"
+      },
+      "additionalSpecs": {
+        "type": "string",
+        "description": "Additional specifications, integrations, or constraints"
+      }
+    }
+  },
+  "deliverable": "Complete Solidity smart contract source code with Foundry test suite, deployment scripts, and technical documentation. Delivered as structured JSON with contract source, test results, and deployment instructions."
+}
