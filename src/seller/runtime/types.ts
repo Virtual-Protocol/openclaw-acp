@@ -28,30 +28,43 @@ export enum MemoType {
   PAYABLE_FEE_REQUEST = 9,
 }
 
-/** Shape of a single memo as received from the ACP socket/API. */
+/** Shape of a single memo as received from the ACP socket/API.
+ *
+ * NOTE: The ACP backend has returned both numeric and string phase values.
+ * Keep this tolerant to schema drift.
+ */
 export interface AcpMemoData {
   id: number;
-  memoType: MemoType;
+  /** Older payloads include memoType; newer ones may omit it. */
+  memoType?: MemoType | number | string;
   content: string;
-  nextPhase: AcpJobPhase;
+  /** Can be numeric enum value (0..6) or string ("NEGOTIATION"). */
+  nextPhase: AcpJobPhase | number | string;
+  status?: string;
+  signedReason?: string | null;
   expiry?: string | null;
   createdAt?: string;
   type?: string;
 }
 
-/** Shape of the job payload delivered via socket `onNewTask` / `onEvaluate`. */
+/** Shape of the job payload delivered via socket `onNewTask` / `onEvaluate`.
+ *
+ * NOTE: `phase` may arrive as a string (e.g. "NEGOTIATION") depending on backend.
+ */
 export interface AcpJobEventData {
   id: number;
-  phase: AcpJobPhase;
+  phase: AcpJobPhase | number | string;
   clientAddress: string;
   providerAddress: string;
   evaluatorAddress: string;
   price: number;
   memos: AcpMemoData[];
-  context: Record<string, any>;
+  context?: Record<string, any>;
   createdAt?: string;
+  name?: string;
+  deliverable?: unknown;
   /** The memo id the seller is expected to sign (if any). */
-  memoToSign?: number;
+  memoToSign?: number | string;
 }
 
 /** Socket event names used by the ACP backend. */

@@ -1,8 +1,22 @@
 // =============================================================================
 // Seller API calls — accept/reject, request payment, deliver.
+// NOTE: Keep logs structured and avoid printing buyer requirements or secrets.
 // =============================================================================
 
 import client from "../../lib/client.js";
+
+type LogLevel = "info" | "warn" | "error";
+function apilog(level: LogLevel, msg: string, fields: Record<string, any> = {}): void {
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level,
+      component: "acp-seller-api",
+      msg,
+      ...fields,
+    })
+  );
+}
 
 // -- Accept / Reject --
 
@@ -15,11 +29,11 @@ export async function acceptOrRejectJob(
   jobId: number,
   params: AcceptOrRejectParams
 ): Promise<void> {
-  console.log(
-    `[sellerApi] acceptOrRejectJob  jobId=${jobId}  accept=${
-      params.accept
-    }  reason=${params.reason ?? "(none)"}`
-  );
+  apilog("info", "acceptOrRejectJob", {
+    jobId,
+    accept: params.accept,
+    reason: params.reason ?? null,
+  });
 
   await client.post(`/acp/providers/jobs/${jobId}/accept`, params);
 }
@@ -39,6 +53,16 @@ export async function requestPayment(
   jobId: number,
   params: RequestPaymentParams
 ): Promise<void> {
+  apilog("info", "requestPayment", {
+    jobId,
+    contentChars: typeof params.content === "string" ? params.content.length : null,
+    payable: params.payableDetail ? {
+      amount: params.payableDetail.amount,
+      tokenAddress: params.payableDetail.tokenAddress,
+      recipient: params.payableDetail.recipient,
+    } : null,
+  });
+
   await client.post(`/acp/providers/jobs/${jobId}/requirement`, params);
 }
 
@@ -52,20 +76,32 @@ export interface DeliverJobParams {
   };
 }
 
-export async function deliverJob(
-  jobId: number,
-  params: DeliverJobParams
-): Promise<void> {
-  const delivStr =
-    typeof params.deliverable === "string"
-      ? params.deliverable
-      : JSON.stringify(params.deliverable);
-  const transferStr = params.payableDetail
-    ? `  transfer: ${params.payableDetail.amount} @ ${params.payableDetail.tokenAddress}`
-    : "";
-  console.log(
-    `[sellerApi] deliverJob  jobId=${jobId}  deliverable=${delivStr}${transferStr}`
-  );
+function summarizeDeliverable(d: DeliverJobParams["deliverable"]): Record<string, any> {
+  if (typeof d === "string") {
+    return { kind: "string", chars: d.length };
+  }
+  if (d && typeof d === "object") {
+    const type = (d as any).type;
+    return {
+      kind: "object",
+      type: typeof type === "string" ? type : "(unknown)",
+      keys: Object.keys(d as any),
+    };
+  }
+  return { kind: typeof d };
+}
 
-  return await client.post(`/acp/providers/jobs/${jobId}/deliverable`, params);
+export async function deliverJob(jobId: number, params: DeliverJobParams): Promise<void> {
+  apilog("info", "deliverJob", {
+    jobId,
+    deliverable: summarizeDeliverable(params.deliverable),
+    transfer: params.payableDetail
+      ? {
+          amount: params.payableDetail.amount,
+          tokenAddress: params.payableDetail.tokenAddress,
+        }
+      : null,
+  });
+
+  await client.post(`/acp/providers/jobs/${jobId}/deliverable`, params);
 }

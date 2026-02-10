@@ -34,7 +34,7 @@ function question(
   return new Promise((resolve) => rl.question(prompt, resolve));
 }
 
-function redactApiKey(key: string): string {
+function redactApiKey(key: string | undefined): string {
   if (!key || key.length < 8) return "****";
   return `${key.slice(0, 4)}...${key.slice(-4)}`;
 }
@@ -156,7 +156,7 @@ async function selectOrCreateAgent(
 
     // Add to local config and activate
     const config = readConfig();
-    const updatedAgents = (config.agents ?? []).map((a) => ({
+    const updatedAgents: AgentEntry[] = (config.agents ?? []).map((a) => ({
       ...a,
       active: false,
       apiKey: undefined,
