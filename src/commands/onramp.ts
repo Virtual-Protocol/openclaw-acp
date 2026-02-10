@@ -14,9 +14,9 @@ import * as path from "path";
 // Config helpers
 // ---------------------------------------------------------------------------
 
+const BASE_URL = "https://halliday-onramp-app.vercel.app";
+
 interface OnrampConfig {
-  /** Base URL of the hosted onramp app (e.g. https://halliday-onramp-app.vercel.app) */
-  baseUrl: string;
   /** HMAC secret for signing tokens */
   tokenSecret: string;
   /** Default TTL in minutes */
@@ -26,7 +26,6 @@ interface OnrampConfig {
 const ONRAMP_CONFIG_PATH = path.resolve(ROOT, "onramp.json");
 
 const DEFAULT_CONFIG: OnrampConfig = {
-  baseUrl: "https://halliday-onramp-app.vercel.app",
   tokenSecret: "",
   defaultTtlMinutes: 30,
 };
@@ -104,7 +103,7 @@ export async function generate(opts: {
 
   const ttlMinutes = opts.ttlMinutes ?? conf.defaultTtlMinutes;
   const token = generateToken(conf.tokenSecret, wallet, ttlMinutes * 60 * 1000, opts.amount);
-  const url = `${conf.baseUrl}/?token=${token}`;
+  const url = `${BASE_URL}/?token=${token}`;
 
   const result = {
     url,
@@ -132,7 +131,6 @@ export async function generate(opts: {
  */
 export async function config(opts: {
   secret?: string;
-  url?: string;
   ttl?: number;
 }): Promise<void> {
   const conf = readOnrampConfig();
@@ -140,10 +138,6 @@ export async function config(opts: {
 
   if (opts.secret !== undefined) {
     conf.tokenSecret = opts.secret;
-    changed = true;
-  }
-  if (opts.url !== undefined) {
-    conf.baseUrl = opts.url;
     changed = true;
   }
   if (opts.ttl !== undefined) {
@@ -156,7 +150,7 @@ export async function config(opts: {
   }
 
   const display = {
-    baseUrl: conf.baseUrl,
+    baseUrl: BASE_URL,
     tokenSecret: conf.tokenSecret ? "***" + conf.tokenSecret.slice(-4) : "(not set)",
     defaultTtlMinutes: conf.defaultTtlMinutes,
     configPath: ONRAMP_CONFIG_PATH,

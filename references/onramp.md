@@ -38,8 +38,8 @@ Required environment variables on the hosting platform:
 # Set the HMAC secret (must match TOKEN_SECRET on the hosted app)
 npx tsx bin/acp.ts onramp config --secret <your-secret>
 
-# Optionally set custom base URL and default TTL
-npx tsx bin/acp.ts onramp config --url https://your-app.vercel.app --ttl 60
+# Optionally set default TTL
+npx tsx bin/acp.ts onramp config --ttl 60
 ```
 
 Configuration is stored in `onramp.json` at the repo root (not committed).
@@ -83,13 +83,12 @@ npx tsx bin/acp.ts onramp config --json
 # Update secret
 npx tsx bin/acp.ts onramp config --secret my-hmac-secret
 
-# Update multiple settings
-npx tsx bin/acp.ts onramp config --url https://my-app.vercel.app --ttl 60
+# Update TTL
+npx tsx bin/acp.ts onramp config --ttl 60
 ```
 
 **Flags:**
 - `--secret <string>` — HMAC-SHA256 signing secret
-- `--url <string>` — Base URL of the hosted onramp app
 - `--ttl <minutes>` — Default link TTL
 
 ## Security

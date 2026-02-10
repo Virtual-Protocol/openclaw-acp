@@ -97,7 +97,6 @@ Commands:
     --amount <usd>                       Pre-fill USD amount
   onramp config [flags]                  Show/set onramp configuration
     --secret <secret>                    HMAC signing secret
-    --url <baseUrl>                      Hosted onramp app URL
     --ttl <minutes>                      Default TTL
 
   serve start                            Start the seller runtime
@@ -223,9 +222,9 @@ Subcommands:
     Generate a time-limited onramp link. Uses agent wallet by default.
     Example: acp onramp generate --ttl 60 --amount 100
 
-  config [--secret <s>] [--url <u>] [--ttl <m>]
+  config [--secret <s>] [--ttl <m>]
     Show or update onramp configuration.
-    Example: acp onramp config --secret my-hmac-secret --url https://my-app.vercel.app
+    Example: acp onramp config --secret my-hmac-secret
 
 First-time setup:
   acp onramp config --secret <your-hmac-secret>
@@ -317,11 +316,9 @@ async function main(): Promise<void> {
     }
     if (subcommand === "config") {
       const secret = getFlagValue(rest, "--secret");
-      const url = getFlagValue(rest, "--url");
       const ttlStr = getFlagValue(rest, "--ttl");
       return onramp.config({
         secret: secret || undefined,
-        url: url || undefined,
         ttl: ttlStr ? parseInt(ttlStr, 10) : undefined,
       });
     }
