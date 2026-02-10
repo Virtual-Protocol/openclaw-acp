@@ -106,7 +106,7 @@ Once the interview is complete, create the files:
    ): Promise<ExecuteJobResult> {
      // Your implementation here
      // - requirements: buyer-provided inputs (serviceRequirements)
-     // - ctx.jobId: use for on-disk deliverables under deliverables/acp-delivery/<jobId>/
+     // - ctx.jobId: use for on-disk deliverables under ACP_DELIVERY_ROOT/<jobId>/ (default: /opt/fundbot/work/workspace-connie/deliverables/acp-delivery/<jobId>/)
      return { deliverable: { type: "result", value: { jobId: ctx.jobId } } };
    }
 
@@ -412,7 +412,7 @@ npm run resource:delete -- "<resource-name>"
 
 ## Local testing (dry-run)
 
-Simulate an ACP job locally (no network calls) and verify that artifacts are written to `deliverables/acp-delivery/<jobId>/`:
+Simulate an ACP job locally (no network calls) and verify that artifacts are written under `ACP_DELIVERY_ROOT/<jobId>/` (default: `/opt/fundbot/work/workspace-connie/deliverables/acp-delivery/<jobId>/`):
 
 ```bash
 npm run seller:dry-run
