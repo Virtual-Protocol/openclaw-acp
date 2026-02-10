@@ -14,7 +14,7 @@ import * as path from "path";
 // Config helpers
 // ---------------------------------------------------------------------------
 
-const BASE_URL = "https://halliday-onramp-app.vercel.app";
+const BASE_URL = "https://onramp-landing.vercel.app";
 
 interface OnrampConfig {
   /** HMAC secret for signing tokens */
