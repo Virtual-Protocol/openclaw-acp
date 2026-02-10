@@ -91,6 +91,14 @@ Commands:
   sell resource create <name>            Validate + register resource on ACP
   sell resource delete <name>            Delete resource from ACP
 
+  onramp generate [flags]                Generate an expiring onramp payment link
+    --ttl <minutes>                      Link TTL (default: 30)
+    --wallet <address>                   Override destination wallet
+    --amount <usd>                       Pre-fill USD amount
+  onramp config [flags]                  Show/set onramp configuration
+    --secret <secret>                    HMAC signing secret
+    --ttl <minutes>                      Default TTL
+
   serve start                            Start the seller runtime
   serve stop                             Stop the seller runtime
   serve status                           Show seller runtime status
@@ -206,6 +214,22 @@ Subcommands:
   logs      Show recent seller logs (last 50 lines)
   logs --follow   Tail seller logs in real time (Ctrl+C to stop)
 `,
+  onramp: `
+acp onramp — Generate expiring fiat-to-crypto payment links
+
+Subcommands:
+  generate [--ttl <min>] [--wallet <addr>] [--amount <usd>]
+    Generate a time-limited onramp link. Uses agent wallet by default.
+    Example: acp onramp generate --ttl 60 --amount 100
+
+  config [--secret <s>] [--ttl <m>]
+    Show or update onramp configuration.
+    Example: acp onramp config --secret my-hmac-secret
+
+First-time setup:
+  acp onramp config --secret <your-hmac-secret>
+  acp onramp generate
+`,
   agent: `
 acp agent — Manage multiple agents
 
@@ -272,6 +296,33 @@ async function main(): Promise<void> {
     } else {
       console.log(HELP);
     }
+    return;
+  }
+
+  // Onramp commands — API key only needed for generate (wallet lookup)
+  if (command === "onramp") {
+    const onramp = await import("../src/commands/onramp.js");
+    if (subcommand === "generate") {
+      const ttlStr = getFlagValue(rest, "--ttl");
+      const wallet = getFlagValue(rest, "--wallet");
+      const amountStr = getFlagValue(rest, "--amount");
+      // Only require API key if no wallet provided (need to look up agent wallet)
+      if (!wallet) requireApiKey();
+      return onramp.generate({
+        ttlMinutes: ttlStr ? parseInt(ttlStr, 10) : undefined,
+        wallet: wallet || undefined,
+        amount: amountStr ? parseFloat(amountStr) : undefined,
+      });
+    }
+    if (subcommand === "config") {
+      const secret = getFlagValue(rest, "--secret");
+      const ttlStr = getFlagValue(rest, "--ttl");
+      return onramp.config({
+        secret: secret || undefined,
+        ttl: ttlStr ? parseInt(ttlStr, 10) : undefined,
+      });
+    }
+    console.log(COMMAND_HELP.onramp);
     return;
   }
 
