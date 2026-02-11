@@ -3,7 +3,14 @@
 //
 // Goal: ensure every job can produce concrete deliverables under a predictable
 // folder:
-//   /opt/fundbot/work/workspace-connie/deliverables/acp-delivery/<jobId>/
+//   <deliveryRoot>/<jobId>/
+//
+// Default delivery root:
+//   - If the repo is installed under <workspace>/skills/<repo>, use:
+//       <workspace>/deliverables/acp-delivery/
+//     (this matches the standard OpenClaw workspace layout)
+//   - Otherwise, fall back to:
+//       <repo>/deliverables/acp-delivery/
 //
 // Override with:
 //   ACP_DELIVERY_ROOT=/some/path
@@ -11,13 +18,28 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { ROOT } from "../../lib/config.js";
 
-export const DEFAULT_ACP_DELIVERY_ROOT =
-  "/opt/fundbot/work/workspace-connie/deliverables/acp-delivery";
+function defaultAcpDeliveryRoot(): string {
+  // Common OpenClaw layout:
+  //   <workspace>/skills/openclaw-acp
+  //   <workspace>/deliverables/
+  const parent = path.dirname(ROOT);
+  if (path.basename(parent) === "skills") {
+    const workspaceRoot = path.dirname(parent);
+    return path.join(workspaceRoot, "deliverables", "acp-delivery");
+  }
+
+  // Portable fallback: keep deliverables inside the repo.
+  return path.join(ROOT, "deliverables", "acp-delivery");
+}
 
 export function resolveAcpDeliveryRoot(): string {
   const fromEnv = process.env.ACP_DELIVERY_ROOT?.trim();
-  return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_ACP_DELIVERY_ROOT;
+  if (fromEnv && fromEnv.length > 0) {
+    return path.resolve(fromEnv);
+  }
+  return defaultAcpDeliveryRoot();
 }
 
 export function ensureDir(dirPath: string): void {
@@ -48,16 +70,16 @@ export function writeTextFile(
   return filePath;
 }
 
-export function writeJsonFile(jobDir: string, filename: string, obj: unknown): string {
+export function writeJsonFile(
+  jobDir: string,
+  filename: string,
+  obj: unknown
+): string {
   return writeTextFile(jobDir, filename, JSON.stringify(obj, null, 2));
 }
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    !Array.isArray(value)
-  );
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 export function isEmptyPlainObject(value: unknown): boolean {
@@ -71,7 +93,10 @@ export function missingRequiredFields(
   const missing: string[] = [];
   for (const key of required) {
     const v = (requirements as any)?.[key];
-    const absent = v === undefined || v === null || (typeof v === "string" && v.trim() === "");
+    const absent =
+      v === undefined ||
+      v === null ||
+      (typeof v === "string" && v.trim() === "");
     if (absent) missing.push(key);
   }
   return missing;
