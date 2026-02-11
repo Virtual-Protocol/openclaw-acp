@@ -14,17 +14,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import * as output from "../lib/output.js";
-import {
-  createJobOffering,
-  deleteJobOffering,
-  upsertResourceApi,
-  deleteResourceApi,
-  type JobOfferingData,
-  type PriceV2,
-  type Resource,
-} from "../lib/api.js";
+import { createJobOffering, deleteJobOffering, upsertResourceApi, deleteResourceApi, type JobOfferingData, type PriceV2, type Resource } from "../lib/api.js";
 import { getMyAgentInfo } from "../lib/wallet.js";
-import { formatPrice } from "../lib/config.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,7 +30,6 @@ interface OfferingJson {
   name: string;
   description: string;
   jobFee: number;
-  jobFeeType: "fixed" | "percentage";
   priceV2?: PriceV2;
   slaMinutes?: number;
   requiredFunds: boolean;
@@ -77,89 +67,31 @@ function validateOfferingJson(filePath: string): ValidationResult {
 
   if (!json.name || typeof json.name !== "string" || json.name.trim() === "") {
     result.valid = false;
-    result.errors.push(
-      'offering.json: "name" is required — set to a non-empty string matching the directory name'
-    );
+    result.errors.push('"name" field is required (non-empty string)');
   }
-  if (
-    !json.description ||
-    typeof json.description !== "string" ||
-    json.description.trim() === ""
-  ) {
+  if (!json.description || typeof json.description !== "string" || json.description.trim() === "") {
     result.valid = false;
-    result.errors.push(
-      'offering.json: "description" is required — describe what this service does for buyers'
-    );
+    result.errors.push('"description" field is required (non-empty string)');
   }
   if (json.jobFee === undefined || json.jobFee === null) {
     result.valid = false;
-    // Validate jobFee presence, type, and value based on jobFeeType
-    if (json.jobFee === undefined || json.jobFee === null) {
-      result.valid = false;
-      result.errors.push(
-        'offering.json: "jobFee" is required — set to a number (see "jobFeeType" docs)'
-      );
-    } else if (typeof json.jobFee !== "number") {
-      result.valid = false;
-      result.errors.push('offering.json: "jobFee" must be a number');
-    }
-
-    if (json.jobFeeType === undefined || json.jobFeeType === null) {
-      result.valid = false;
-      result.errors.push(
-        'offering.json: "jobFeeType" is required ("fixed" or "percentage")'
-      );
-    } else if (
-      json.jobFeeType !== "fixed" &&
-      json.jobFeeType !== "percentage"
-    ) {
-      result.valid = false;
-      result.errors.push(
-        'offering.json: "jobFeeType" must be either "fixed" or "percentage"'
-      );
-    }
-
-    // Additional validation if both jobFee is a number and jobFeeType is set
-    if (typeof json.jobFee === "number" && json.jobFeeType) {
-      if (json.jobFeeType === "fixed") {
-        if (json.jobFee < 0) {
-          result.valid = false;
-          result.errors.push(
-            'offering.json: "jobFee" must be a non-negative number (fee in USDC per job) for fixed fee type'
-          );
-        }
-        if (json.jobFee === 0) {
-          result.warnings.push(
-            'offering.json: "jobFee" is 0; jobs will pay no fee to seller'
-          );
-        }
-      } else if (json.jobFeeType === "percentage") {
-        if (json.jobFee < 0.001 || json.jobFee > 0.99) {
-          result.valid = false;
-          result.errors.push(
-            'offering.json: "jobFee" must be >= 0.001 and <= 0.99 (value in decimals, eg. 50% = 0.5) for percentage fee type'
-          );
-        }
-      }
-    }
+    result.errors.push('"jobFee" field is required (number)');
+  } else if (typeof json.jobFee !== "number" || json.jobFee < 0) {
+    result.valid = false;
+    result.errors.push('"jobFee" must be a non-negative number');
   }
   if (json.requiredFunds === undefined || json.requiredFunds === null) {
     result.valid = false;
-    result.errors.push(
-      'offering.json: "requiredFunds" is required — set to true if the job needs additional token transfer beyond the fee, false otherwise'
-    );
+    result.errors.push('"requiredFunds" field is required (boolean)');
   } else if (typeof json.requiredFunds !== "boolean") {
     result.valid = false;
-    result.errors.push('offering.json: "requiredFunds" must be true or false');
+    result.errors.push('"requiredFunds" must be a boolean');
   }
 
   return result;
 }
 
-function validateHandlers(
-  filePath: string,
-  requiredFunds?: boolean
-): ValidationResult {
+function validateHandlers(filePath: string, requiredFunds?: boolean): ValidationResult {
   const result: ValidationResult = { valid: true, errors: [], warnings: [] };
 
   if (!fs.existsSync(filePath)) {
@@ -177,11 +109,21 @@ function validateHandlers(
     /export\s*\{\s*[^}]*executeJob[^}]*\}/,
   ];
 
-  if (!executeJobPatterns.some((p) => p.test(content))) {
+  const hasExecuteJob = executeJobPatterns.some((p) => p.test(content));
+  if (!hasExecuteJob) {
     result.valid = false;
-    result.errors.push(
-      'handlers.ts: must export an "executeJob" function — this is the required handler that runs your service logic'
-    );
+    result.errors.push('handlers.ts must export an "executeJob" function');
+  }
+
+  const executeJobWithCtxPatterns = [
+    /export\s+(async\s+)?function\s+executeJob\s*\(\s*[\s\S]*?,\s*[\s\S]*?\)/,
+    /export\s+const\s+executeJob\s*=\s*(async\s*)?\(\s*[\s\S]*?,\s*[\s\S]*?\)\s*=>/,
+    /export\s+const\s+executeJob\s*=\s*(async\s*)?function\s*\(\s*[\s\S]*?,\s*[\s\S]*?\)/,
+  ];
+
+  if (hasExecuteJob && !executeJobWithCtxPatterns.some((p) => p.test(content))) {
+    result.valid = false;
+    result.errors.push('handlers.ts executeJob must accept both (requirements, ctx) parameters');
   }
 
   const hasValidate = [
@@ -197,21 +139,15 @@ function validateHandlers(
   ].some((p) => p.test(content));
 
   if (!hasValidate) {
-    result.warnings.push(
-      'handlers.ts: optional "validateRequirements" handler not found — requests will be accepted without validation'
-    );
+    result.warnings.push('Optional: "validateRequirements" handler not found.');
   }
   if (requiredFunds === true && !hasFunds) {
     result.valid = false;
-    result.errors.push(
-      'handlers.ts: "requiredFunds" is true in offering.json — must export "requestAdditionalFunds" to specify the token transfer details'
-    );
+    result.errors.push('"requiredFunds" is true — handlers.ts must export "requestAdditionalFunds"');
   }
   if (requiredFunds === false && hasFunds) {
     result.valid = false;
-    result.errors.push(
-      'handlers.ts: "requiredFunds" is false in offering.json — must NOT export "requestAdditionalFunds" (remove it, or set requiredFunds to true)'
-    );
+    result.errors.push('"requiredFunds" is false — handlers.ts must NOT export "requestAdditionalFunds"');
   }
 
   return result;
@@ -221,7 +157,7 @@ function buildAcpPayload(json: OfferingJson): JobOfferingData {
   return {
     name: json.name,
     description: json.description,
-    priceV2: json.priceV2 ?? { type: json.jobFeeType, value: json.jobFee },
+    priceV2: json.priceV2 ?? { type: "fixed", value: json.jobFee },
     slaMinutes: json.slaMinutes ?? 5,
     requiredFunds: json.requiredFunds,
     requirement: json.requirement ?? {},
@@ -243,13 +179,18 @@ export async function init(offeringName: string): Promise<void> {
 
   fs.mkdirSync(dir, { recursive: true });
 
-  const offeringJson: Record<string, unknown> = {
+  const offeringJson = {
     name: offeringName,
-    description: "",
-    jobFee: null,
-    jobFeeType: null,
-    requiredFunds: null,
-    requirement: {},
+    description: "Describe what this service does",
+    jobFee: 1,
+    requiredFunds: false,
+    requirement: {
+      type: "object",
+      properties: {
+        input: { type: "string", description: "Required primary input for this service" },
+      },
+      required: ["input"],
+    },
   };
 
   fs.writeFileSync(
@@ -258,16 +199,31 @@ export async function init(offeringName: string): Promise<void> {
   );
 
   const handlersTemplate = `import type { ExecuteJobResult, JobContext, ValidationResult } from "../../runtime/offeringTypes.js";
-import { writeJsonFile, writeTextFile, missingRequiredFields } from "../../runtime/delivery.js";
+import { buildNeedsInfoValue, buildWrittenValue, writeJsonFile, writeTextFile, missingRequiredFields } from "../../runtime/delivery.js";
 
-// Required: implement your service logic here
-export async function executeJob(requirements: any, ctx: JobContext): Promise<ExecuteJobResult> {
+const REQUIRED_FIELDS = ["input"] as const;
+
+export async function executeJob(requirementsRaw: any, ctx: JobContext): Promise<ExecuteJobResult> {
+  const requirements = (requirementsRaw ?? {}) as Record<string, any>;
+
   // Always write a reproducible snapshot.
-  writeJsonFile(ctx.jobDir, "JOB_SNAPSHOT.json", { requirements, ctx });
+  writeJsonFile(ctx.jobDir, "JOB_SNAPSHOT.json", {
+    generatedAt: new Date().toISOString(),
+    jobId: ctx.jobId,
+    offeringName: ctx.offeringName,
+    clientAddress: ctx.job.clientAddress,
+    providerAddress: ctx.job.providerAddress,
+    evaluatorAddress: ctx.job.evaluatorAddress,
+    price: ctx.job.price,
+    phase: ctx.job.phase,
+    createdAt: ctx.job.createdAt,
+    acpContext: ctx.job.context,
+    memos: ctx.job.memos,
+    requirements,
+  });
 
-  // If requirements are missing, write INTAKE_REQUEST.md and return a deliverable that points to it.
-  // TODO: update this list to match offering.json.requirement.required[].
-  const missing = missingRequiredFields(requirements ?? {}, ["input"]);
+  // Keep REQUIRED_FIELDS in sync with offering.json.requirement.required[].
+  const missing = missingRequiredFields(requirements, [...REQUIRED_FIELDS]);
 
   if (missing.length > 0) {
     const intake = [
@@ -275,12 +231,12 @@ export async function executeJob(requirements: any, ctx: JobContext): Promise<Ex
       "",
       "Missing required field(s): " + missing.join(", "),
       "",
-      "Please create a new job and pass --requirements JSON that includes the missing fields.",
+      "Please create a new ACP job and include --requirements JSON with the missing fields.",
       "",
       "Example:",
       "",
       "\`\`\`json",
-      "{ \"input\": \"...\" }",
+      "{ \\\"input\\\": \\\"...\\\" }",
       "\`\`\`",
       "",
     ].join("\\n");
@@ -290,27 +246,45 @@ export async function executeJob(requirements: any, ctx: JobContext): Promise<Ex
     return {
       deliverable: {
         type: "needs_info",
-        value: {
-          status: "needs_info",
+        value: buildNeedsInfoValue({
+          offering: ctx.offeringName,
+          jobId: ctx.jobId,
+          jobDir: ctx.jobDir,
           missing,
           filesWritten: ["JOB_SNAPSHOT.json", "INTAKE_REQUEST.md"],
-          localPath: ctx.jobDir,
-        },
+        }),
       },
     };
   }
 
-  // TODO: Implement your service and write REPORT.md (+ any extra artifacts).
+  const deliveryPlanFile = "DELIVERY_PLAN.json";
+  writeJsonFile(ctx.jobDir, deliveryPlanFile, {
+    generatedAt: new Date().toISOString(),
+    jobId: ctx.jobId,
+    offering: ctx.offeringName,
+    requirements,
+    phases: ["scope", "implementation", "validation", "handoff"],
+  });
+
   const report = [
-    "# Report",
+    "# REPORT",
     "",
-    "TODO: Implement your service.",
+    "## Request summary",
+    "- offering: " + ctx.offeringName,
+    "- jobId: " + String(ctx.jobId),
+    "- generatedAt: " + new Date().toISOString(),
     "",
     "## Requirements (as received)",
-    "",
     "\`\`\`json",
     JSON.stringify(requirements, null, 2),
     "\`\`\`",
+    "",
+    "## Delivery package written",
+    "- JOB_SNAPSHOT.json",
+    "- " + deliveryPlanFile,
+    "",
+    "## Compliance note",
+    "- Do not claim execution, tests, or audits unless evidence files are written in this job folder.",
     "",
   ].join("\\n");
 
@@ -319,25 +293,25 @@ export async function executeJob(requirements: any, ctx: JobContext): Promise<Ex
   return {
     deliverable: {
       type: "delivery_written",
-      value: {
-        status: "written",
-        filesWritten: ["JOB_SNAPSHOT.json", "REPORT.md"],
-        localPath: ctx.jobDir,
-      },
+      value: buildWrittenValue({
+        offering: ctx.offeringName,
+        jobId: ctx.jobId,
+        jobDir: ctx.jobDir,
+        filesWritten: ["JOB_SNAPSHOT.json", deliveryPlanFile, "REPORT.md"],
+      }),
     },
   };
 }
 
 // Optional: validate incoming requests
-export function validateRequirements(requirements: any, ctx: JobContext): ValidationResult {
-  // Return { valid: true } to accept, or { valid: false, reason: "explanation" } to reject
+export function validateRequirements(_requirements: any, _ctx: JobContext): ValidationResult {
+  // Return { valid: true } to accept, or { valid: false, reason: "explanation" } to reject.
   return { valid: true };
 }
 
-// Optional: provide custom payment request reason
+// Optional: provide a custom payment request reason.
 export function requestPayment(_requirements: any, _ctx: JobContext): string {
-  // Return a custom message/reason for the payment request
-  return "Request accepted";
+  return "Payment requested. If requirements are incomplete, the deliverable will include an intake request.";
 }
 `;
 
@@ -346,13 +320,9 @@ export function requestPayment(_requirements: any, _ctx: JobContext): string {
   output.output({ created: dir }, () => {
     output.heading("Offering Scaffolded");
     output.log(`  Created: src/seller/offerings/${offeringName}/`);
-    output.log(
-      `    - offering.json  (edit name, description, fee, feeType, requirements)`
-    );
+    output.log(`    - offering.json  (edit name, description, fee, requirements)`);
     output.log(`    - handlers.ts    (implement executeJob)`);
-    output.log(
-      `\n  Next: edit the files, then run: acp sell create ${offeringName}\n`
-    );
+    output.log(`\n  Next: edit the files, then run: acp sell create ${offeringName}\n`);
   });
 }
 
@@ -395,10 +365,7 @@ export async function create(offeringName: string): Promise<void> {
   // Validate handlers.ts
   output.log("\n  Checking handlers.ts...");
   const handlersPath = path.join(dir, "handlers.ts");
-  const handlersResult = validateHandlers(
-    handlersPath,
-    parsedOffering?.requiredFunds
-  );
+  const handlersResult = validateHandlers(handlersPath, parsedOffering?.requiredFunds);
   allErrors.push(...handlersResult.errors);
   allWarnings.push(...handlersResult.warnings);
 
@@ -465,7 +432,6 @@ interface LocalOffering {
   name: string;
   description: string;
   jobFee: number;
-  jobFeeType: "fixed" | "percentage";
   requiredFunds: boolean;
 }
 
@@ -485,7 +451,6 @@ function listLocalOfferings(): LocalOffering[] {
           name: json.name ?? d.name,
           description: json.description ?? "",
           jobFee: json.jobFee ?? 0,
-          jobFeeType: json.jobFeeType ?? "fixed",
           requiredFunds: json.requiredFunds ?? false,
         };
       } catch {
@@ -536,7 +501,6 @@ export async function list(): Promise<void> {
       name: o.name,
       description: "",
       jobFee: o.priceV2?.value ?? 0,
-      jobFeeType: o.priceV2?.type ?? "fixed",
       requiredFunds: o.requiredFunds ?? false,
       listed: true,
       acpOnly: true as const,
@@ -548,9 +512,7 @@ export async function list(): Promise<void> {
     output.heading("Job Offerings");
 
     if (offerings.length === 0) {
-      output.log(
-        "  No offerings found. Run `acp sell init <name>` to create one.\n"
-      );
+      output.log("  No offerings found. Run `acp sell init <name>` to create one.\n");
       return;
     }
 
@@ -558,19 +520,17 @@ export async function list(): Promise<void> {
       const status = o.acpOnly
         ? "Listed on ACP (no local files)"
         : o.listed
-        ? "Listed"
-        : "Local only";
+          ? "Listed"
+          : "Local only";
       output.log(`\n  ${o.name}`);
       if (!o.acpOnly) {
         output.field("    Description", o.description);
       }
-      output.field("    Fee", `${formatPrice(o.jobFee, o.jobFeeType)}`);
+      output.field("    Fee", `${o.jobFee} USDC`);
       output.field("    Funds required", String(o.requiredFunds));
       output.field("    Status", status);
       if (o.acpOnly) {
-        output.log(
-          "    Tip: Run `acp sell delete " + o.name + "` to delist from ACP"
-        );
+        output.log("    Tip: Run `acp sell delete " + o.name + "` to delist from ACP");
       }
     }
     output.log("");
@@ -589,17 +549,10 @@ function detectHandlers(offeringDir: string): string[] {
   if (/export\s+(async\s+)?function\s+executeJob\s*\(/.test(content)) {
     found.push("executeJob");
   }
-  if (
-    /export\s+(async\s+)?function\s+validateRequirements\s*\(/.test(content)
-  ) {
+  if (/export\s+(async\s+)?function\s+validateRequirements\s*\(/.test(content)) {
     found.push("validateRequirements");
   }
-  if (/export\s+(async\s+)?function\s+requestPayment\s*\(/.test(content)) {
-    found.push("requestPayment");
-  }
-  if (
-    /export\s+(async\s+)?function\s+requestAdditionalFunds\s*\(/.test(content)
-  ) {
+  if (/export\s+(async\s+)?function\s+requestAdditionalFunds\s*\(/.test(content)) {
     found.push("requestAdditionalFunds");
   }
 
@@ -679,11 +632,7 @@ function validateResourceJson(filePath: string): ValidationResult {
     result.valid = false;
     result.errors.push('"name" field is required (non-empty string)');
   }
-  if (
-    !json.description ||
-    typeof json.description !== "string" ||
-    json.description.trim() === ""
-  ) {
+  if (!json.description || typeof json.description !== "string" || json.description.trim() === "") {
     result.valid = false;
     result.errors.push('"description" field is required (non-empty string)');
   }
@@ -717,7 +666,7 @@ export async function resourceInit(resourceName: string): Promise<void> {
 
   const resourceJson = {
     name: resourceName,
-    description: "TODO: Describe what this resource provides",
+    description: "Describe what this resource provides",
     url: "https://api.example.com/endpoint",
   };
 
@@ -730,9 +679,7 @@ export async function resourceInit(resourceName: string): Promise<void> {
     output.heading("Resource Scaffolded");
     output.log(`  Created: src/seller/resources/${resourceName}/`);
     output.log(`    - resources.json  (edit name, description, url, params)`);
-    output.log(
-      `\n  Next: edit the file, then run: acp sell resource create ${resourceName}\n`
-    );
+    output.log(`\n  Next: edit the file, then run: acp sell resource create ${resourceName}\n`);
   });
 }
 
