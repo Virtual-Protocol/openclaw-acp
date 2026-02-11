@@ -18,6 +18,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { pathToFileURL } from "url";
 import { ROOT } from "../../lib/config.js";
 
 function defaultAcpDeliveryRoot(): string {
@@ -100,4 +101,78 @@ export function missingRequiredFields(
     if (absent) missing.push(key);
   }
   return missing;
+}
+
+export interface DeliveryFileRef {
+  filename: string;
+  path: string;
+  uri: string;
+}
+
+function toFileRef(jobDir: string, filename: string): DeliveryFileRef {
+  const filePath = path.join(jobDir, filename);
+  return {
+    filename,
+    path: filePath,
+    uri: pathToFileURL(filePath).href,
+  };
+}
+
+export function buildDeliveryFileRefs(
+  jobDir: string,
+  filesWritten: string[]
+): DeliveryFileRef[] {
+  return filesWritten.map((filename) => toFileRef(jobDir, filename));
+}
+
+export function buildNeedsInfoValue(args: {
+  offering: string;
+  jobId: number | string;
+  jobDir: string;
+  missing: string[];
+  filesWritten: string[];
+  intakeFile?: string;
+}): Record<string, unknown> {
+  const refs = buildDeliveryFileRefs(args.jobDir, args.filesWritten);
+  const intakeFile = args.intakeFile ?? "INTAKE_REQUEST.md";
+  const intakeRef = refs.find((r) => r.filename === intakeFile) ??
+    toFileRef(args.jobDir, intakeFile);
+
+  return {
+    status: "needs_info",
+    offering: args.offering,
+    jobId: args.jobId,
+    missing: args.missing,
+    filesWritten: args.filesWritten,
+    localPath: args.jobDir,
+    intakeFile: intakeRef.filename,
+    intakePath: intakeRef.path,
+    intakeUri: intakeRef.uri,
+    fileRefs: refs,
+  };
+}
+
+export function buildWrittenValue(args: {
+  offering: string;
+  jobId: number | string;
+  jobDir: string;
+  filesWritten: string[];
+  reportFile?: string;
+}): Record<string, unknown> {
+  const refs = buildDeliveryFileRefs(args.jobDir, args.filesWritten);
+  const reportFile = args.reportFile ?? "REPORT.md";
+  const reportRef = refs.find((r) => r.filename === reportFile) ??
+    toFileRef(args.jobDir, reportFile);
+
+  return {
+    status: "written",
+    offering: args.offering,
+    jobId: args.jobId,
+    filesWritten: args.filesWritten,
+    localPath: args.jobDir,
+    reportFile: reportRef.filename,
+    reportPath: reportRef.path,
+    reportUri: reportRef.uri,
+    fileRefs: refs,
+  };
 }

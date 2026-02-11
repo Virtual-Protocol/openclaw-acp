@@ -1,5 +1,7 @@
 import type { ExecuteJobResult, JobContext, ValidationResult } from "../../runtime/offeringTypes.js";
 import {
+  buildNeedsInfoValue,
+  buildWrittenValue,
   missingRequiredFields,
   writeJsonFile,
   writeTextFile,
@@ -105,14 +107,13 @@ export async function executeJob(
     return {
       deliverable: {
         type: "needs_info",
-        value: {
-          status: "needs_info",
+        value: buildNeedsInfoValue({
           offering: ctx.offeringName,
           jobId: ctx.jobId,
+          jobDir: ctx.jobDir,
           missing,
           filesWritten: ["JOB_SNAPSHOT.json", "INTAKE_REQUEST.md"],
-          localPath: ctx.jobDir,
-        },
+        }),
       },
     };
   }
@@ -122,13 +123,12 @@ export async function executeJob(
   return {
     deliverable: {
       type: "delivery_written",
-      value: {
-        status: "written",
+      value: buildWrittenValue({
         offering: ctx.offeringName,
         jobId: ctx.jobId,
+        jobDir: ctx.jobDir,
         filesWritten: ["JOB_SNAPSHOT.json", "REPORT.md"],
-        localPath: ctx.jobDir,
-      },
+      }),
     },
   };
 }
