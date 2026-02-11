@@ -287,6 +287,36 @@ function assertReportIsConcrete(args: {
   }
 }
 
+const STUB_MARKERS: Array<{ regex: RegExp; label: string }> = [
+  { regex: /\bTODO\b/i, label: "TODO" },
+  { regex: /\bTBD\b/i, label: "TBD" },
+  { regex: /\bstub\b/i, label: "stub" },
+  { regex: /\bplaceholder\b/i, label: "placeholder" },
+];
+
+function assertNoStubMarkers(args: {
+  offeringName: string;
+  jobId: number;
+  jobDir: string;
+}): void {
+  const files = fs
+    .readdirSync(args.jobDir)
+    .filter((name) => fs.statSync(path.join(args.jobDir, name)).isFile());
+
+  for (const file of files) {
+    const fullPath = path.join(args.jobDir, file);
+    const content = readTextFile(fullPath);
+
+    for (const marker of STUB_MARKERS) {
+      if (marker.regex.test(content)) {
+        throw new Error(
+          `Dry-run failed for offering=${args.offeringName} jobId=${args.jobId}. Artifact ${file} contains stub marker "${marker.label}".`
+        );
+      }
+    }
+  }
+}
+
 async function runOne(
   offeringName: string,
   jobId: number,
@@ -394,6 +424,12 @@ async function runOne(
       jobDir,
     });
   }
+
+  assertNoStubMarkers({
+    offeringName,
+    jobId,
+    jobDir,
+  });
 
   console.log(
     [

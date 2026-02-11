@@ -15,9 +15,41 @@ type Requirements = {
   database?: string;
 };
 
+type AuthMode = "none" | "required";
+
+type EndpointContractEntry = {
+  method: string;
+  path: string;
+  purpose: string;
+  auth: AuthMode;
+  requestShape: string;
+  responseShape: string;
+  rateLimit: string;
+};
+
+type EndpointContract = {
+  generatedAt: string;
+  apiSummary: string;
+  framework: string;
+  database: string;
+  authStrategy: string;
+  endpoints: EndpointContractEntry[];
+};
+
 function text(value: string | undefined, fallback: string): string {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : fallback;
+}
+
+function normalizeFramework(rawFramework: string | undefined): string {
+  const value = text(rawFramework, "Hono");
+  const lower = value.toLowerCase();
+
+  if (lower.includes("express")) return "Express";
+  if (lower.includes("fastify")) return "Fastify";
+  if (lower.includes("hono")) return "Hono";
+
+  return value;
 }
 
 function writeSnapshot(jobDir: string, requirements: Requirements, ctx: JobContext): void {
@@ -66,17 +98,203 @@ function intakeMarkdown(missing: string[]): string {
   ].join("\n");
 }
 
-function buildApiPlan(requirements: Requirements, ctx: JobContext): Record<string, unknown> {
-  const framework = text(requirements.framework, "Hono");
-  const database = text(requirements.database, "none specified");
+function authStrategyFromDescription(description: string): string {
+  const lower = description.toLowerCase();
 
+  if (/(api\s*key|x-api-key|apikey)/i.test(lower)) {
+    return "API key header (`x-api-key`)";
+  }
+
+  if (/(oauth|jwt|login|session|token|auth)/i.test(lower)) {
+    return "JWT bearer tokens (access + refresh)";
+  }
+
+  return "No explicit auth requirement provided";
+}
+
+function pushEndpoint(
+  out: EndpointContractEntry[],
+  endpoint: EndpointContractEntry
+): void {
+  const exists = out.some(
+    (item) => item.method === endpoint.method && item.path === endpoint.path
+  );
+  if (!exists) {
+    out.push(endpoint);
+  }
+}
+
+function inferEndpoints(requirements: Requirements): EndpointContractEntry[] {
+  const description = text(requirements.apiDescription, "");
+  const lower = description.toLowerCase();
+  const authRequired = /(oauth|jwt|login|session|token|auth)/i.test(lower);
+
+  const endpoints: EndpointContractEntry[] = [];
+
+  pushEndpoint(endpoints, {
+    method: "GET",
+    path: "/health",
+    purpose: "Health probe for uptime checks",
+    auth: "none",
+    requestShape: "none",
+    responseShape: "{ status: 'ok', timestamp: string }",
+    rateLimit: "public, 60 req/min",
+  });
+
+  pushEndpoint(endpoints, {
+    method: "GET",
+    path: "/version",
+    purpose: "Expose current API build/version",
+    auth: "none",
+    requestShape: "none",
+    responseShape: "{ version: string, commit?: string }",
+    rateLimit: "public, 60 req/min",
+  });
+
+  if (/(user|account|profile)/i.test(lower)) {
+    pushEndpoint(endpoints, {
+      method: "GET",
+      path: "/users",
+      purpose: "List users with pagination",
+      auth: authRequired ? "required" : "optional",
+      requestShape: "query: { page?: number, limit?: number }",
+      responseShape: "{ items: User[], page: number, total: number }",
+      rateLimit: "30 req/min",
+    });
+
+    pushEndpoint(endpoints, {
+      method: "POST",
+      path: "/users",
+      purpose: "Create a user",
+      auth: authRequired ? "required" : "optional",
+      requestShape: "body: { email: string, name: string, ... }",
+      responseShape: "{ id: string, ...user }",
+      rateLimit: "15 req/min",
+    });
+
+    pushEndpoint(endpoints, {
+      method: "GET",
+      path: "/users/:id",
+      purpose: "Get user by id",
+      auth: authRequired ? "required" : "optional",
+      requestShape: "params: { id: string }",
+      responseShape: "{ id: string, ...user }",
+      rateLimit: "30 req/min",
+    });
+  }
+
+  if (/(session|auth|login|jwt|token|oauth)/i.test(lower)) {
+    pushEndpoint(endpoints, {
+      method: "POST",
+      path: "/auth/login",
+      purpose: "Issue access + refresh tokens",
+      auth: "none",
+      requestShape: "body: { email: string, password: string }",
+      responseShape: "{ accessToken: string, refreshToken: string }",
+      rateLimit: "10 req/min",
+    });
+
+    pushEndpoint(endpoints, {
+      method: "POST",
+      path: "/auth/refresh",
+      purpose: "Rotate access token",
+      auth: "none",
+      requestShape: "body: { refreshToken: string }",
+      responseShape: "{ accessToken: string }",
+      rateLimit: "15 req/min",
+    });
+  }
+
+  if (/(order|checkout|cart)/i.test(lower)) {
+    pushEndpoint(endpoints, {
+      method: "POST",
+      path: "/orders",
+      purpose: "Create order/checkout session",
+      auth: authRequired ? "required" : "optional",
+      requestShape: "body: { items: OrderItem[], ... }",
+      responseShape: "{ orderId: string, status: string }",
+      rateLimit: "20 req/min",
+    });
+
+    pushEndpoint(endpoints, {
+      method: "GET",
+      path: "/orders/:id",
+      purpose: "Fetch order status",
+      auth: authRequired ? "required" : "optional",
+      requestShape: "params: { id: string }",
+      responseShape: "{ orderId: string, status: string, ... }",
+      rateLimit: "30 req/min",
+    });
+  }
+
+  if (/(webhook|callback)/i.test(lower)) {
+    pushEndpoint(endpoints, {
+      method: "POST",
+      path: "/webhooks/provider",
+      purpose: "Receive external event callbacks",
+      auth: "none",
+      requestShape: "headers: signature + body payload",
+      responseShape: "{ received: true }",
+      rateLimit: "provider-controlled",
+    });
+  }
+
+  // Fallback if the description does not imply domain endpoints.
+  if (endpoints.length <= 2) {
+    pushEndpoint(endpoints, {
+      method: "GET",
+      path: "/items",
+      purpose: "List generic resources",
+      auth: authRequired ? "required" : "optional",
+      requestShape: "query: { page?: number, limit?: number }",
+      responseShape: "{ items: Record<string, unknown>[] }",
+      rateLimit: "30 req/min",
+    });
+
+    pushEndpoint(endpoints, {
+      method: "POST",
+      path: "/items",
+      purpose: "Create generic resource",
+      auth: authRequired ? "required" : "optional",
+      requestShape: "body: { ...resource }",
+      responseShape: "{ id: string, ...resource }",
+      rateLimit: "15 req/min",
+    });
+  }
+
+  return endpoints;
+}
+
+function buildEndpointContract(requirements: Requirements): EndpointContract {
+  const apiSummary = text(requirements.apiDescription, "");
+  const framework = normalizeFramework(requirements.framework);
+  const database = text(requirements.database, "none specified");
+  const authStrategy = authStrategyFromDescription(apiSummary);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    apiSummary,
+    framework,
+    database,
+    authStrategy,
+    endpoints: inferEndpoints(requirements),
+  };
+}
+
+function buildApiPlan(
+  requirements: Requirements,
+  ctx: JobContext,
+  contract: EndpointContract
+): Record<string, unknown> {
   return {
     generatedAt: new Date().toISOString(),
     jobId: ctx.jobId,
     offering: ctx.offeringName,
     apiDescription: text(requirements.apiDescription, ""),
-    framework,
-    database,
+    framework: contract.framework,
+    database: contract.database,
+    authStrategy: contract.authStrategy,
+    endpointCount: contract.endpoints.length,
     implementationPhases: [
       "Contract + endpoint design",
       "Route/middleware implementation",
@@ -87,7 +305,7 @@ function buildApiPlan(requirements: Requirements, ctx: JobContext): Record<strin
     baselineStack: {
       runtime: "Node.js",
       language: "TypeScript",
-      framework,
+      framework: contract.framework,
       testing: "vitest/jest (project choice)",
       docs: "OpenAPI",
     },
@@ -100,25 +318,35 @@ function buildApiPlan(requirements: Requirements, ctx: JobContext): Record<strin
   };
 }
 
-function endpointDraftMarkdown(requirements: Requirements): string {
-  return [
-    "# Endpoint Draft",
+function endpointDraftMarkdown(
+  requirements: Requirements,
+  contract: EndpointContract
+): string {
+  const endpointSections = contract.endpoints.flatMap((endpoint) => [
+    `### ${endpoint.method} ${endpoint.path}`,
+    `- purpose: ${endpoint.purpose}`,
+    `- auth: ${endpoint.auth}`,
+    `- request: ${endpoint.requestShape}`,
+    `- response: ${endpoint.responseShape}`,
+    `- rateLimit: ${endpoint.rateLimit}`,
     "",
-    "Use this as a starting contract before implementation.",
+  ]);
+
+  return [
+    "# Endpoint Contract Draft",
     "",
     "## API summary",
     text(requirements.apiDescription, "(not provided)"),
     "",
-    "## Suggested baseline endpoints",
-    "- GET /health",
-    "- GET /version",
-    "- POST /auth/login (if auth required)",
+    "## Runtime assumptions",
+    `- framework: ${contract.framework}`,
+    `- database: ${contract.database}`,
+    `- authStrategy: ${contract.authStrategy}`,
     "",
-    "## TODO: replace with exact endpoint contract",
-    "- method + path",
-    "- request schema",
-    "- response schema",
-    "- auth + rate-limit policy",
+    "## Endpoint set",
+    ...endpointSections,
+    "## Buyer follow-up",
+    "- If you need endpoint changes, submit a follow-up ACP job with the revised API description.",
     "",
   ].join("\n");
 }
@@ -126,7 +354,8 @@ function endpointDraftMarkdown(requirements: Requirements): string {
 function reportMarkdown(
   requirements: Requirements,
   ctx: JobContext,
-  artifacts: { planFile: string; draftFile: string }
+  artifacts: { planFile: string; contractFile: string; draftFile: string },
+  contract: EndpointContract
 ): string {
   return [
     "# REPORT — TypeScript API Development",
@@ -137,16 +366,18 @@ function reportMarkdown(
     "",
     "## Requirement summary",
     `- apiDescription: ${text(requirements.apiDescription, "(missing)")}`,
-    `- framework: ${text(requirements.framework, "Hono")}`,
-    `- database: ${text(requirements.database, "none specified")}`,
+    `- framework: ${contract.framework}`,
+    `- database: ${contract.database}`,
+    `- inferredEndpoints: ${contract.endpoints.length}`,
     "",
     "## Delivery package written",
     `- ${artifacts.planFile}`,
+    `- ${artifacts.contractFile}`,
     `- ${artifacts.draftFile}`,
     "- JOB_SNAPSHOT.json",
     "",
     "## Notes",
-    "- This package provides an implementation-ready API plan + contract draft on disk.",
+    "- This package provides a concrete API contract (JSON + Markdown) and implementation plan on disk.",
     "- It does not claim code was executed or deployed unless execution evidence exists in this folder.",
     "",
   ].join("\n");
@@ -187,14 +418,17 @@ export async function executeJob(
   }
 
   const planFile = "API_BUILD_PLAN.json";
+  const contractFile = "ENDPOINT_CONTRACT.json";
   const draftFile = "ENDPOINT_DRAFT.md";
+  const contract = buildEndpointContract(requirements);
 
-  writeJsonFile(ctx.jobDir, planFile, buildApiPlan(requirements, ctx));
-  writeTextFile(ctx.jobDir, draftFile, endpointDraftMarkdown(requirements));
+  writeJsonFile(ctx.jobDir, planFile, buildApiPlan(requirements, ctx, contract));
+  writeJsonFile(ctx.jobDir, contractFile, contract);
+  writeTextFile(ctx.jobDir, draftFile, endpointDraftMarkdown(requirements, contract));
   writeTextFile(
     ctx.jobDir,
     "REPORT.md",
-    reportMarkdown(requirements, ctx, { planFile, draftFile })
+    reportMarkdown(requirements, ctx, { planFile, contractFile, draftFile }, contract)
   );
 
   return {
@@ -204,7 +438,7 @@ export async function executeJob(
         offering: ctx.offeringName,
         jobId: ctx.jobId,
         jobDir: ctx.jobDir,
-        filesWritten: ["JOB_SNAPSHOT.json", planFile, draftFile, "REPORT.md"],
+        filesWritten: ["JOB_SNAPSHOT.json", planFile, contractFile, draftFile, "REPORT.md"],
       }),
     },
   };
