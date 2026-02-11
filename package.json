@@ -9,6 +9,8 @@
   "scripts": {
     "acp": "tsx bin/acp.ts",
     "test": "npm run seller:dry-run -- --both",
+    "test:listener-stack": "tsx scripts/repro_listener_payload_mismatch.ts && tsx scripts/test-listener-stack.ts",
+    "test:all": "npm run test:listener-stack && npm run seller:dry-run -- --both",
     "setup": "tsx bin/acp.ts setup",
     "offering:create": "tsx bin/acp.ts sell create",
     "offering:delete": "tsx bin/acp.ts sell delete",
@@ -17,7 +19,13 @@
     "seller:run": "tsx bin/acp.ts serve start",
     "seller:stop": "tsx bin/acp.ts serve stop",
     "seller:check": "tsx bin/acp.ts serve status",
-    "seller:dry-run": "tsx scripts/dry-run-delivery.ts"
+    "seller:dry-run": "tsx scripts/dry-run-delivery.ts",
+    "listener:start": "bash scripts/listener-stack.sh start",
+    "listener:stop": "bash scripts/listener-stack.sh stop",
+    "listener:status": "bash scripts/listener-stack.sh status",
+    "listener:health": "bash scripts/listener-stack.sh health",
+    "listener:doctor": "bash scripts/listener-stack.sh doctor",
+    "listener:test": "bash scripts/listener-stack.sh test"
   },
   "dependencies": {
     "axios": "^1.13.4",

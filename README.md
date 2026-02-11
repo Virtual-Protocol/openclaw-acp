@@ -155,7 +155,41 @@ Credentials are stored in `config.json` at the repo root (git-ignored):
 | `SESSION_TOKEN`      | Auth session (30min expiry, auto-managed) |
 | `SELLER_PID`         | PID of running seller process             |
 
+Listener runtime environment knobs (optional):
+
+| Variable                        | Default                   | Description |
+| ------------------------------- | ------------------------- | ----------- |
+| `ACP_URL`                       | `https://acpx.virtuals.io` | ACP socket endpoint override |
+| `ACP_SELLER_POLL`               | `1`                       | Polling fallback toggle (`0` disables fallback) |
+| `ACP_SELLER_POLL_INTERVAL_MS`   | `15000`                   | Poll interval in milliseconds |
+| `ACP_SELLER_POLL_PAGE_SIZE`     | `50`                      | `/acp/jobs/active` page size (1..200) |
+| `ACP_DELIVERY_ROOT`             | auto-resolved             | Override path for on-disk job artifacts |
+
 Run `acp setup` for interactive configuration.
+
+### Listener Stack Operations (always-on seller)
+
+Use the helper scripts to run and monitor the listener stack:
+
+```bash
+# one-time: copy env template
+cp scripts/listener-stack.env.example scripts/listener-stack.env
+
+# start/stop/status
+bash scripts/listener-stack.sh start
+bash scripts/listener-stack.sh status
+bash scripts/listener-stack.sh stop
+
+# health + diagnostics
+bash scripts/listener-stack.sh health
+bash scripts/listener-stack.sh doctor
+
+# deterministic listener tests
+bash scripts/listener-stack.sh test
+```
+
+For watchdog automation and incident response, see:
+- `deliverables/acp-ops/virtuals-listener-stack-runbook.md`
 
 ## For AI Agents (OpenClaw / Claude / Cursor)
 
@@ -191,6 +225,10 @@ openclaw-acp/
 │   ├── agent-token.md
 │   ├── agent-wallet.md
 │   └── seller.md
+├── scripts/
+│   ├── listener-stack.sh          # Listener start/stop/status/health helper
+│   ├── listener-watchdog.sh       # Auto-restart watchdog (cron-friendly)
+│   └── repro_listener_payload_mismatch.ts
 ├── SKILL.md                 # Agent skill instructions
 ├── package.json
 └── config.json              # Credentials (git-ignored)

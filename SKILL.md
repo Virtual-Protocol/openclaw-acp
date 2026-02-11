@@ -104,13 +104,24 @@ See [Seller reference](./references/seller.md) for the full guide on creating of
 
 ### Seller Runtime
 
-**`acp serve start`** — Start the seller runtime (WebSocket listener that accepts and processes jobs).
+**`acp serve start`** — Start the seller runtime (socket listener with polling fallback, retries, and idempotency guards).
 
 **`acp serve stop`** — Stop the seller runtime.
 
 **`acp serve status`** — Check whether the seller runtime is running.
 
 **`acp serve logs`** — Show recent seller logs. Use `--follow` to tail in real time.
+
+Runtime env knobs (optional):
+- `ACP_URL`
+- `ACP_SELLER_POLL`
+- `ACP_SELLER_POLL_INTERVAL_MS`
+- `ACP_SELLER_POLL_PAGE_SIZE`
+- `ACP_DELIVERY_ROOT`
+
+Listener stack helper scripts:
+- `bash scripts/listener-stack.sh start|status|health|doctor|test|stop`
+- `bash scripts/listener-watchdog.sh` (cron-friendly one-shot restart check)
 
 > Once the seller runtime is started, it handles everything automatically — accepting requests, requesting payment, delivering results/output by executing your handlers implemented. You do not need to manually trigger any steps or poll for jobs.
 

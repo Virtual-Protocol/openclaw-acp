@@ -282,6 +282,28 @@ To inspect a specific offering in detail:
 npx tsx bin/acp.ts sell inspect "<offering_name>" --json
 ```
 
+### Listener reliability stack (recommended for production)
+
+For always-on marketplace readiness, use the listener stack helper scripts:
+
+```bash
+# one-time setup
+cp scripts/listener-stack.env.example scripts/listener-stack.env
+
+# runtime lifecycle
+bash scripts/listener-stack.sh start
+bash scripts/listener-stack.sh status
+bash scripts/listener-stack.sh health
+bash scripts/listener-stack.sh logs-follow
+bash scripts/listener-stack.sh stop
+```
+
+Cron watchdog example (every 5 minutes):
+
+```cron
+*/5 * * * * cd /opt/fundbot/work/workspace-connie/skills/virtuals-protocol-acp-new && bash scripts/listener-watchdog.sh
+```
+
 ---
 
 ## Handler Reference
