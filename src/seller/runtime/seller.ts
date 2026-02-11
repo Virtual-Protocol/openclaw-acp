@@ -57,31 +57,80 @@ const ACP_URL = "https://acpx.virtuals.io";
 
 // -- Job handling --
 
-function resolveOfferingName(data: AcpJobEventData): string | undefined {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseNegotiationMemo(
+  data: AcpJobEventData
+): Record<string, unknown> | undefined {
+  const negotiationMemo = data.memos.find(
+    (m) => m.nextPhase === AcpJobPhase.NEGOTIATION
+  );
+
+  if (!negotiationMemo) {
+    return undefined;
+  }
+
   try {
-    const negotiationMemo = data.memos.find(
-      (m) => m.nextPhase === AcpJobPhase.NEGOTIATION
-    );
-    if (negotiationMemo) {
-      return JSON.parse(negotiationMemo.content).name;
-    }
+    const parsed = JSON.parse(negotiationMemo.content);
+    return isPlainObject(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
 }
 
-function resolveServiceRequirements(data: AcpJobEventData): Record<string, any> {
-  const negotiationMemo = data.memos.find(
-    (m) => m.nextPhase === AcpJobPhase.NEGOTIATION
-  );
-  if (negotiationMemo) {
-    try {
-      return JSON.parse(negotiationMemo.content).requirement;
-    } catch {
-      return {};
+function firstNonEmptyString(values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
     }
   }
-  return {};
+  return undefined;
+}
+
+function resolveOfferingName(data: AcpJobEventData): string | undefined {
+  const payload = parseNegotiationMemo(data);
+  if (!payload) {
+    return undefined;
+  }
+
+  return firstNonEmptyString([
+    payload.name,
+    payload.offeringName,
+    payload.offering,
+  ]);
+}
+
+function resolveServiceRequirements(data: AcpJobEventData): Record<string, any> {
+  const payload = parseNegotiationMemo(data);
+  if (!payload) {
+    return {};
+  }
+
+  const requirementsCandidate =
+    payload.requirement ?? payload.requirements ?? payload.serviceRequirements;
+
+  if (isPlainObject(requirementsCandidate)) {
+    return requirementsCandidate as Record<string, any>;
+  }
+
+  const reserved = new Set([
+    "name",
+    "offeringName",
+    "offering",
+    "requirement",
+    "requirements",
+    "serviceRequirements",
+  ]);
+
+  const inlineRequirements = Object.fromEntries(
+    Object.entries(payload).filter(([key]) => !reserved.has(key))
+  );
+
+  return Object.keys(inlineRequirements).length > 0
+    ? (inlineRequirements as Record<string, any>)
+    : {};
 }
 
 function buildJobContext(job: AcpJobEventData, offeringName: string): JobContext {
