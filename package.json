@@ -8,6 +8,7 @@
   },
   "scripts": {
     "acp": "tsx bin/acp.ts",
+    "test": "npm run seller:dry-run -- --both",
     "setup": "tsx bin/acp.ts setup",
     "offering:create": "tsx bin/acp.ts sell create",
     "offering:delete": "tsx bin/acp.ts sell delete",
