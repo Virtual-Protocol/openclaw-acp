@@ -15,6 +15,11 @@ type Requirements = {
   additionalSpecs?: string;
 };
 
+function text(value: string | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : fallback;
+}
+
 function writeSnapshot(jobDir: string, requirements: Requirements, ctx: JobContext): void {
   writeJsonFile(jobDir, "JOB_SNAPSHOT.json", {
     generatedAt: new Date().toISOString(),
@@ -42,47 +47,99 @@ function intakeMarkdown(missing: string[]): string {
     "",
     "Recommended fields:",
     "- contractType: ERC-20 | staking | vault | AMM | governance",
-    "- additionalSpecs: integrations, constraints, audits, upgradeability",
+    "- additionalSpecs: integrations, constraints, upgradeability, audits",
     "",
     "Also helpful:",
-    "- target chain (Base mainnet/testnet)",
-    "- access control model + roles",
-    "- threat model / invariants",
+    "- target network (Base mainnet/testnet)",
+    "- access-control model + roles",
+    "- threat model / critical invariants",
     "",
     "Example:",
     "```json",
     "{",
     "  \"projectDescription\": \"Build a staking vault with 7-day lockup and linear rewards.\",",
     "  \"contractType\": \"staking\",",
-    "  \"additionalSpecs\": \"Must be Ownable2Step; include Foundry tests and deploy script\"",
+    "  \"additionalSpecs\": \"Use Ownable2Step; include Foundry tests and deploy script\"",
     "}",
     "```",
     "",
   ].join("\n");
 }
 
-function reportMarkdown(requirements: Requirements, ctx: JobContext): string {
+function buildDefiPlan(requirements: Requirements, ctx: JobContext): Record<string, unknown> {
+  const contractType = text(requirements.contractType, "custom");
+
+  return {
+    generatedAt: new Date().toISOString(),
+    jobId: ctx.jobId,
+    offering: ctx.offeringName,
+    projectDescription: text(requirements.projectDescription, ""),
+    contractType,
+    additionalSpecs: text(requirements.additionalSpecs, "none provided"),
+    implementationPhases: [
+      "Clarify scope + protocol invariants",
+      "Design contract architecture + storage layout",
+      "Implement Solidity contracts",
+      "Implement Foundry test suite + fuzz/property tests",
+      "Prepare deploy scripts + ops handoff docs",
+    ],
+    defaultSecurityChecklist: [
+      "Access control and role boundaries",
+      "Reentrancy and external call ordering",
+      "Math precision and rounding behavior",
+      "Pause/recovery and upgrade strategy",
+      "Invariant testing coverage",
+    ],
+    acceptanceCriteria: [
+      "Architecture and assumptions are explicitly documented",
+      "Critical invariants are listed and testable",
+      "Deployment parameters and ownership model are clear",
+    ],
+  };
+}
+
+function securityChecklistMarkdown(requirements: Requirements): string {
   return [
-    `# REPORT — Base DeFi Development`,
+    "# Security Checklist",
+    "",
+    `Contract type: ${text(requirements.contractType, "custom")}`,
+    `Project: ${text(requirements.projectDescription, "(not provided)")}`,
+    "",
+    "## Must validate before deployment",
+    "- Access control paths (owner/admin/operator)",
+    "- External call surfaces and reentrancy guards",
+    "- Token accounting and precision behavior",
+    "- Edge-case behavior (zero amounts, max bounds, stale oracles)",
+    "- Emergency controls and incident playbooks",
+    "",
+  ].join("\n");
+}
+
+function reportMarkdown(
+  requirements: Requirements,
+  ctx: JobContext,
+  artifacts: { planFile: string; checklistFile: string }
+): string {
+  return [
+    "# REPORT — Base DeFi Development",
     "",
     `Job ID: ${ctx.jobId}`,
     `Client: ${ctx.job.clientAddress}`,
     `Generated: ${new Date().toISOString()}`,
     "",
-    "## Requirements (as received)",
-    "```json",
-    JSON.stringify(requirements, null, 2),
-    "```",
+    "## Requirement summary",
+    `- projectDescription: ${text(requirements.projectDescription, "(missing)")}`,
+    `- contractType: ${text(requirements.contractType, "custom")}`,
+    `- additionalSpecs: ${text(requirements.additionalSpecs, "none provided")}`,
     "",
-    "## Planned build steps (not yet executed)",
-    "- Confirm spec + invariants + threat model",
-    "- Draft contract architecture (Solidity + Foundry)",
-    "- Implement contracts + tests + deploy scripts",
-    "- Run static analysis + gas profiling",
-    "- Produce a short technical doc + usage notes",
+    "## Delivery package written",
+    `- ${artifacts.planFile}`,
+    `- ${artifacts.checklistFile}`,
+    "- JOB_SNAPSHOT.json",
     "",
     "## Notes",
-    "- This report is an on-disk receipt + plan. It does not claim implementation or audits were completed unless evidence is included.",
+    "- This package includes an implementation blueprint + security checklist on disk.",
+    "- It does not claim contracts were implemented, tested, or deployed unless evidence files are included here.",
     "",
   ].join("\n");
 }
@@ -92,7 +149,7 @@ export function validateRequirements(_requirements: any, _ctx: JobContext): Vali
 }
 
 export function requestPayment(_requirements: any, _ctx: JobContext): string {
-  return "Payment requested. If the provided requirements are incomplete, the deliverable will contain an intake request asking for the missing fields.";
+  return "Payment requested. If requirements are incomplete, deliverable will include an intake request with exact missing fields.";
 }
 
 export async function executeJob(
@@ -121,7 +178,16 @@ export async function executeJob(
     };
   }
 
-  writeTextFile(ctx.jobDir, "REPORT.md", reportMarkdown(requirements, ctx));
+  const planFile = "DEFI_BUILD_PLAN.json";
+  const checklistFile = "SECURITY_CHECKLIST.md";
+
+  writeJsonFile(ctx.jobDir, planFile, buildDefiPlan(requirements, ctx));
+  writeTextFile(ctx.jobDir, checklistFile, securityChecklistMarkdown(requirements));
+  writeTextFile(
+    ctx.jobDir,
+    "REPORT.md",
+    reportMarkdown(requirements, ctx, { planFile, checklistFile })
+  );
 
   return {
     deliverable: {
@@ -130,7 +196,7 @@ export async function executeJob(
         offering: ctx.offeringName,
         jobId: ctx.jobId,
         jobDir: ctx.jobDir,
-        filesWritten: ["JOB_SNAPSHOT.json", "REPORT.md"],
+        filesWritten: ["JOB_SNAPSHOT.json", planFile, checklistFile, "REPORT.md"],
       }),
     },
   };

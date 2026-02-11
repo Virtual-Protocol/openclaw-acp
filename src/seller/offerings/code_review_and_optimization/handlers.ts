@@ -15,6 +15,19 @@ type Requirements = {
   focusAreas?: string;
 };
 
+function text(value: string | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : fallback;
+}
+
+function parseFocusAreas(raw: string | undefined): string[] {
+  const normalized = text(raw, "security, correctness, maintainability");
+  return normalized
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 function writeSnapshot(jobDir: string, requirements: Requirements, ctx: JobContext): void {
   writeJsonFile(jobDir, "JOB_SNAPSHOT.json", {
     generatedAt: new Date().toISOString(),
@@ -41,7 +54,7 @@ function intakeMarkdown(missing: string[]): string {
     "Please create a new job and include `codeSource`.",
     "Accepted formats:",
     "- GitHub repo URL (preferred)",
-    "- Pasted code (small snippets)",
+    "- Pasted code snippets (for small targeted review)",
     "",
     "Recommended fields:",
     "- language: TypeScript | Solidity | Python",
@@ -59,27 +72,80 @@ function intakeMarkdown(missing: string[]): string {
   ].join("\n");
 }
 
-function reportMarkdown(requirements: Requirements, ctx: JobContext): string {
+function buildReviewPlan(requirements: Requirements, ctx: JobContext): Record<string, unknown> {
+  const focusAreas = parseFocusAreas(requirements.focusAreas);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    jobId: ctx.jobId,
+    offering: ctx.offeringName,
+    codeSource: text(requirements.codeSource, ""),
+    language: text(requirements.language, "unknown"),
+    focusAreas,
+    workflow: [
+      "Reproduce project baseline (install/build/test where possible)",
+      "Run static/lint tooling for target language",
+      "Manual review across requested focus areas",
+      "Prioritize findings by severity and effort",
+      "Provide patch recommendations and quick wins",
+    ],
+    findingsSchema: {
+      id: "string",
+      severity: "critical|high|medium|low|info",
+      category: "security|performance|correctness|maintainability|testing",
+      location: "file:line or symbol",
+      issue: "string",
+      recommendation: "string",
+    },
+  };
+}
+
+function findingsSchemaMarkdown(focusAreas: string[]): string {
   return [
-    `# REPORT — Code Review & Optimization`,
+    "# Findings Schema",
+    "",
+    "Use this structure when writing final findings.",
+    "",
+    "## Focus areas",
+    ...focusAreas.map((f) => `- ${f}`),
+    "",
+    "## Per-finding fields",
+    "- id",
+    "- severity",
+    "- category",
+    "- location",
+    "- issue",
+    "- recommendation",
+    "",
+  ].join("\n");
+}
+
+function reportMarkdown(
+  requirements: Requirements,
+  ctx: JobContext,
+  artifacts: { planFile: string; schemaFile: string },
+  focusAreas: string[]
+): string {
+  return [
+    "# REPORT — Code Review & Optimization",
     "",
     `Job ID: ${ctx.jobId}`,
     `Client: ${ctx.job.clientAddress}`,
     `Generated: ${new Date().toISOString()}`,
     "",
-    "## Requirements (as received)",
-    "```json",
-    JSON.stringify(requirements, null, 2),
-    "```",
+    "## Requirement summary",
+    `- codeSource: ${text(requirements.codeSource, "(missing)")}`,
+    `- language: ${text(requirements.language, "unknown")}`,
+    `- focusAreas: ${focusAreas.join(", ")}`,
     "",
-    "## Planned review steps (not yet executed)",
-    "- Reproduce build/test (if repo provided)",
-    "- Run linters/static analysis (language-dependent)",
-    "- Manual review: correctness, security, complexity, edge cases",
-    "- Provide prioritized findings + suggested patches",
+    "## Delivery package written",
+    `- ${artifacts.planFile}`,
+    `- ${artifacts.schemaFile}`,
+    "- JOB_SNAPSHOT.json",
     "",
     "## Notes",
-    "- This report is an on-disk receipt + plan. It does not claim a completed review unless evidence is included.",
+    "- This package includes a concrete review workflow + findings schema on disk.",
+    "- It does not claim tooling execution or completed findings unless evidence files are included here.",
     "",
   ].join("\n");
 }
@@ -89,7 +155,7 @@ export function validateRequirements(_requirements: any, _ctx: JobContext): Vali
 }
 
 export function requestPayment(_requirements: any, _ctx: JobContext): string {
-  return "Payment requested. If the provided requirements are incomplete, the deliverable will contain an intake request asking for the missing fields.";
+  return "Payment requested. If requirements are incomplete, deliverable will include an intake request with exact missing fields.";
 }
 
 export async function executeJob(
@@ -118,7 +184,17 @@ export async function executeJob(
     };
   }
 
-  writeTextFile(ctx.jobDir, "REPORT.md", reportMarkdown(requirements, ctx));
+  const focusAreas = parseFocusAreas(requirements.focusAreas);
+  const planFile = "REVIEW_PLAN.json";
+  const schemaFile = "FINDINGS_SCHEMA.md";
+
+  writeJsonFile(ctx.jobDir, planFile, buildReviewPlan(requirements, ctx));
+  writeTextFile(ctx.jobDir, schemaFile, findingsSchemaMarkdown(focusAreas));
+  writeTextFile(
+    ctx.jobDir,
+    "REPORT.md",
+    reportMarkdown(requirements, ctx, { planFile, schemaFile }, focusAreas)
+  );
 
   return {
     deliverable: {
@@ -127,7 +203,7 @@ export async function executeJob(
         offering: ctx.offeringName,
         jobId: ctx.jobId,
         jobDir: ctx.jobDir,
-        filesWritten: ["JOB_SNAPSHOT.json", "REPORT.md"],
+        filesWritten: ["JOB_SNAPSHOT.json", planFile, schemaFile, "REPORT.md"],
       }),
     },
   };

@@ -125,7 +125,7 @@ Any agent can sell services on the ACP marketplace. The workflow:
 1. `acp sell init <name>` — scaffold offering template
 2. Edit `offering.json` (name, description, fee, requirements schema)
 3. Edit `handlers.ts` (implement `executeJob`, optional validation)
-4. `npm run seller:dry-run -- --both` — simulate jobs and verify `REPORT.md`/`INTAKE_REQUEST.md` artifacts are written
+4. `npm run seller:dry-run -- --both` — simulate jobs and verify `REPORT.md`/`INTAKE_REQUEST.md` plus offering-specific artifacts are written
 5. `acp sell create <name>` — validate and register on ACP
 6. `acp serve start` — start the seller runtime to accept jobs
 

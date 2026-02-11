@@ -15,6 +15,20 @@ type Requirements = {
   chainTarget?: string;
 };
 
+function text(value: string | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : fallback;
+}
+
+function scopeList(scope: string | undefined): string[] {
+  const raw = text(scope, "");
+  if (!raw) return ["entire provided source"];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function writeSnapshot(jobDir: string, requirements: Requirements, ctx: JobContext): void {
   writeJsonFile(jobDir, "JOB_SNAPSHOT.json", {
     generatedAt: new Date().toISOString(),
@@ -44,9 +58,9 @@ function intakeMarkdown(missing: string[]): string {
     "- Pasted Solidity source code (single contract or multiple)",
     "",
     "Recommended fields:",
-    "- scope: which contracts/functions are in-scope",
+    "- scope: contracts/functions in scope (comma-separated)",
     "- chainTarget: Base | Ethereum | Arbitrum | Optimism | Polygon",
-    "- any known issues / threat model notes",
+    "- known concerns: prior incidents or attack assumptions",
     "",
     "Example:",
     "```json",
@@ -60,27 +74,93 @@ function intakeMarkdown(missing: string[]): string {
   ].join("\n");
 }
 
-function reportMarkdown(requirements: Requirements, ctx: JobContext): string {
+function buildAuditPlan(requirements: Requirements, ctx: JobContext): Record<string, unknown> {
+  const chainTarget = text(requirements.chainTarget, "not specified");
+  const scope = scopeList(requirements.scope);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    jobId: ctx.jobId,
+    offering: ctx.offeringName,
+    contractSource: text(requirements.contractSource, ""),
+    chainTarget,
+    scope,
+    methodology: [
+      "Static analysis pass (if source/build available)",
+      "Manual review: auth, state transitions, reentrancy, math/precision",
+      "Economic/game-theory risk pass for protocol-specific logic",
+      "Severity assignment and remediation guidance",
+    ],
+    outputSchema: {
+      finding: {
+        severity: "critical|high|medium|low|info",
+        title: "string",
+        location: "file:line or function",
+        impact: "string",
+        recommendation: "string",
+      },
+    },
+    constraints: [
+      "Do not claim findings without evidence in this job folder",
+      "If tooling is not run, report must state it explicitly",
+    ],
+  };
+}
+
+function findingsTemplateMarkdown(scope: string[]): string {
   return [
-    `# REPORT — Smart Contract Security Audit`,
+    "# Findings Template",
+    "",
+    "Use this template when producing the final audit output.",
+    "",
+    "## Scope",
+    ...scope.map((item) => `- ${item}`),
+    "",
+    "## Findings",
+    "### Critical",
+    "- (none yet)",
+    "",
+    "### High",
+    "- (none yet)",
+    "",
+    "### Medium",
+    "- (none yet)",
+    "",
+    "### Low",
+    "- (none yet)",
+    "",
+    "### Informational",
+    "- (none yet)",
+    "",
+  ].join("\n");
+}
+
+function reportMarkdown(
+  requirements: Requirements,
+  ctx: JobContext,
+  artifacts: { planFile: string; findingsTemplateFile: string },
+  scope: string[]
+): string {
+  return [
+    "# REPORT — Smart Contract Security Audit",
     "",
     `Job ID: ${ctx.jobId}`,
     `Client: ${ctx.job.clientAddress}`,
     `Generated: ${new Date().toISOString()}`,
     "",
-    "## Requirements (as received)",
-    "```json",
-    JSON.stringify(requirements, null, 2),
-    "```",
+    "## Requirement summary",
+    `- contractSource: ${text(requirements.contractSource, "(missing)")}`,
+    `- chainTarget: ${text(requirements.chainTarget, "not specified")}`,
+    `- scope: ${scope.join(", ")}`,
     "",
-    "## Planned audit steps (not yet executed)",
-    "- Reproduce build (Foundry) and run test suite",
-    "- Run static analysis (e.g., Slither) and linting",
-    "- Manual review: access control, reentrancy, math/precision, oracle deps",
-    "- Document findings with severity + remediation",
+    "## Delivery package written",
+    `- ${artifacts.planFile}`,
+    `- ${artifacts.findingsTemplateFile}`,
+    "- JOB_SNAPSHOT.json",
     "",
     "## Notes",
-    "- This report is an on-disk receipt + plan. It does NOT claim a completed audit unless tool output and evidence are included.",
+    "- This package defines audit scope + methodology artifacts on disk.",
+    "- It does not claim a completed audit or tooling execution unless evidence files are included here.",
     "",
   ].join("\n");
 }
@@ -91,7 +171,7 @@ export function validateRequirements(_requirements: any, _ctx: JobContext): Vali
 }
 
 export function requestPayment(_requirements: any, _ctx: JobContext): string {
-  return "Payment requested. If the provided requirements are incomplete, the deliverable will contain an intake request asking for the missing fields.";
+  return "Payment requested. If requirements are incomplete, deliverable will include an intake request with exact missing fields.";
 }
 
 export async function executeJob(
@@ -120,7 +200,17 @@ export async function executeJob(
     };
   }
 
-  writeTextFile(ctx.jobDir, "REPORT.md", reportMarkdown(requirements, ctx));
+  const scope = scopeList(requirements.scope);
+  const planFile = "AUDIT_PLAN.json";
+  const findingsTemplateFile = "FINDINGS_TEMPLATE.md";
+
+  writeJsonFile(ctx.jobDir, planFile, buildAuditPlan(requirements, ctx));
+  writeTextFile(ctx.jobDir, findingsTemplateFile, findingsTemplateMarkdown(scope));
+  writeTextFile(
+    ctx.jobDir,
+    "REPORT.md",
+    reportMarkdown(requirements, ctx, { planFile, findingsTemplateFile }, scope)
+  );
 
   return {
     deliverable: {
@@ -129,7 +219,7 @@ export async function executeJob(
         offering: ctx.offeringName,
         jobId: ctx.jobId,
         jobDir: ctx.jobDir,
-        filesWritten: ["JOB_SNAPSHOT.json", "REPORT.md"],
+        filesWritten: ["JOB_SNAPSHOT.json", planFile, findingsTemplateFile, "REPORT.md"],
       }),
     },
   };

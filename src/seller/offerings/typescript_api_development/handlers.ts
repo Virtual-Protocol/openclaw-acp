@@ -15,6 +15,11 @@ type Requirements = {
   database?: string;
 };
 
+function text(value: string | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : fallback;
+}
+
 function writeSnapshot(jobDir: string, requirements: Requirements, ctx: JobContext): void {
   writeJsonFile(jobDir, "JOB_SNAPSHOT.json", {
     generatedAt: new Date().toISOString(),
@@ -46,7 +51,7 @@ function intakeMarkdown(missing: string[]): string {
     "",
     "Also helpful:",
     "- auth model (API key, JWT, OAuth)",
-    "- endpoints list + request/response examples",
+    "- endpoint list + request/response examples",
     "- deployment target (Vercel, Docker, VPS)",
     "",
     "Example:",
@@ -61,28 +66,88 @@ function intakeMarkdown(missing: string[]): string {
   ].join("\n");
 }
 
-function reportMarkdown(requirements: Requirements, ctx: JobContext): string {
+function buildApiPlan(requirements: Requirements, ctx: JobContext): Record<string, unknown> {
+  const framework = text(requirements.framework, "Hono");
+  const database = text(requirements.database, "none specified");
+
+  return {
+    generatedAt: new Date().toISOString(),
+    jobId: ctx.jobId,
+    offering: ctx.offeringName,
+    apiDescription: text(requirements.apiDescription, ""),
+    framework,
+    database,
+    implementationPhases: [
+      "Contract + endpoint design",
+      "Route/middleware implementation",
+      "Auth + validation + error model",
+      "Persistence integration",
+      "Test + docs + deploy packaging",
+    ],
+    baselineStack: {
+      runtime: "Node.js",
+      language: "TypeScript",
+      framework,
+      testing: "vitest/jest (project choice)",
+      docs: "OpenAPI",
+    },
+    acceptanceCriteria: [
+      "Deterministic API contract documented",
+      "Validation and error-handling strategy defined",
+      "Auth approach explicitly documented",
+      "Deployment assumptions declared",
+    ],
+  };
+}
+
+function endpointDraftMarkdown(requirements: Requirements): string {
   return [
-    `# REPORT — TypeScript API Development`,
+    "# Endpoint Draft",
+    "",
+    "Use this as a starting contract before implementation.",
+    "",
+    "## API summary",
+    text(requirements.apiDescription, "(not provided)"),
+    "",
+    "## Suggested baseline endpoints",
+    "- GET /health",
+    "- GET /version",
+    "- POST /auth/login (if auth required)",
+    "",
+    "## TODO: replace with exact endpoint contract",
+    "- method + path",
+    "- request schema",
+    "- response schema",
+    "- auth + rate-limit policy",
+    "",
+  ].join("\n");
+}
+
+function reportMarkdown(
+  requirements: Requirements,
+  ctx: JobContext,
+  artifacts: { planFile: string; draftFile: string }
+): string {
+  return [
+    "# REPORT — TypeScript API Development",
     "",
     `Job ID: ${ctx.jobId}`,
     `Client: ${ctx.job.clientAddress}`,
     `Generated: ${new Date().toISOString()}`,
     "",
-    "## Requirements (as received)",
-    "```json",
-    JSON.stringify(requirements, null, 2),
-    "```",
+    "## Requirement summary",
+    `- apiDescription: ${text(requirements.apiDescription, "(missing)")}`,
+    `- framework: ${text(requirements.framework, "Hono")}`,
+    `- database: ${text(requirements.database, "none specified")}`,
     "",
-    "## Planned build steps (not yet executed)",
-    "- Confirm endpoints + data model",
-    "- Scaffold project + routing + middleware",
-    "- Implement auth + validation + error handling",
-    "- Add tests + OpenAPI spec",
-    "- Document run/deploy instructions",
+    "## Delivery package written",
+    `- ${artifacts.planFile}`,
+    `- ${artifacts.draftFile}`,
+    "- JOB_SNAPSHOT.json",
     "",
     "## Notes",
-    "- This report is an on-disk receipt + plan. It does not claim implementation is complete unless code + test output is included.",
+    "- This package provides an implementation-ready API plan + contract draft on disk.",
+    "- It does not claim code was executed or deployed unless execution evidence exists in this folder.",
     "",
   ].join("\n");
 }
@@ -92,7 +157,7 @@ export function validateRequirements(_requirements: any, _ctx: JobContext): Vali
 }
 
 export function requestPayment(_requirements: any, _ctx: JobContext): string {
-  return "Payment requested. If the provided requirements are incomplete, the deliverable will contain an intake request asking for the missing fields.";
+  return "Payment requested. If requirements are incomplete, deliverable will include an intake request with exact missing fields.";
 }
 
 export async function executeJob(
@@ -121,7 +186,16 @@ export async function executeJob(
     };
   }
 
-  writeTextFile(ctx.jobDir, "REPORT.md", reportMarkdown(requirements, ctx));
+  const planFile = "API_BUILD_PLAN.json";
+  const draftFile = "ENDPOINT_DRAFT.md";
+
+  writeJsonFile(ctx.jobDir, planFile, buildApiPlan(requirements, ctx));
+  writeTextFile(ctx.jobDir, draftFile, endpointDraftMarkdown(requirements));
+  writeTextFile(
+    ctx.jobDir,
+    "REPORT.md",
+    reportMarkdown(requirements, ctx, { planFile, draftFile })
+  );
 
   return {
     deliverable: {
@@ -130,7 +204,7 @@ export async function executeJob(
         offering: ctx.offeringName,
         jobId: ctx.jobId,
         jobDir: ctx.jobDir,
-        filesWritten: ["JOB_SNAPSHOT.json", "REPORT.md"],
+        filesWritten: ["JOB_SNAPSHOT.json", planFile, draftFile, "REPORT.md"],
       }),
     },
   };
