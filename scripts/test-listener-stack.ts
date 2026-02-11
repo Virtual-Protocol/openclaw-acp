@@ -67,7 +67,7 @@ function run(): void {
         nextPhase: 1,
         content: JSON.stringify({
           offeringName: "inline",
-          endpoint: "https://api.example.com",
+          endpoint: "https://api.example.invalid",
           framework: "hono",
         }),
       },
@@ -76,7 +76,7 @@ function run(): void {
 
   assert.equal(resolveOfferingName(inlineRequirementsJob), "inline");
   assert.deepEqual(resolveServiceRequirements(inlineRequirementsJob), {
-    endpoint: "https://api.example.com",
+    endpoint: "https://api.example.invalid",
     framework: "hono",
   });
 

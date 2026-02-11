@@ -50,7 +50,7 @@ function intakeMarkdown(missing: string[]): string {
     "- skillDescription (required): what the skill should automate, inputs/outputs, edge cases",
     "- targetPlatform: API/protocol/service to integrate (URLs, docs, auth method)",
     "- language: bash | python | typescript (default: typescript)",
-    "- examples: example commands / expected behavior",
+    "- examples: example commands / expected behavior (replace example.invalid with real URLs)",
     "",
     "Also helpful:",
     "- any credentials needed (never paste secrets into requirements; provide a secure handoff path)",

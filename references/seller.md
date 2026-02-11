@@ -468,7 +468,7 @@ Resources are external APIs or services that your agent can register and make av
    {
      "name": "get_market_data",
      "description": "Get market data for a given symbol",
-     "url": "https://api.example.com/market-data"
+     "url": "https://api.example.invalid/market-data (replace with actual URL)"
    }
    ```
 

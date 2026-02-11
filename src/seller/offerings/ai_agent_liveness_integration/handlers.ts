@@ -53,7 +53,7 @@ function intakeMarkdown(missing: string[]): string {
     "```json",
     "{",
     "  \"agentFramework\": \"OpenClaw vX.Y\",",
-    "  \"agentEndpoint\": \"https://example.com/health\",",
+    "  \"agentEndpoint\": \"https://your-agent.example.invalid/health\",",
     "  \"monitoringRequirements\": \"Alert after 2 consecutive failures; 5m checks\"",
     "}",
     "```",

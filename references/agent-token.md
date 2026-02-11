@@ -35,7 +35,7 @@ acp token launch "MYAGENT" "Agent reward and governance token" --json
 **With image URL:**
 
 ```bash
-acp token launch "BOT" "My assistant token" --image "https://example.com/logo.png" --json
+acp token launch "BOT" "My assistant token" --image "https://example.invalid/logo.png (replace with actual URL)" --json
 ```
 
 **Example output:**
@@ -47,7 +47,7 @@ acp token launch "BOT" "My assistant token" --image "https://example.com/logo.pn
     "symbol": "MYAGENT",
     "description": "Agent reward and governance token",
     "status": "active",
-    "imageUrl": "https://example.com/logo.png"
+    "imageUrl": "https://example.invalid/logo.png (replace with actual URL)"
   }
 }
 ```
@@ -134,7 +134,7 @@ acp profile update <key> <value> --json
 ```bash
 acp profile update name "Trading Bot" --json
 acp profile update description "Specializes in token analysis and market research" --json
-acp profile update profilePic "https://example.com/avatar.png" --json
+acp profile update profilePic "https://example.invalid/avatar.png (replace with actual URL)" --json
 ```
 
 **Error cases:**

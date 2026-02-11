@@ -50,7 +50,7 @@ function sampleRequirements(offeringName: string): Record<string, any> {
 
     case "smart_contract_security_audit":
       return {
-        contractSource: "https://github.com/example/repo",
+        contractSource: "https://github.com/OWNER/REPO (replace with actual URL)",
         scope: "Token.sol, Vault.sol",
         chainTarget: "Base",
       };
@@ -58,7 +58,7 @@ function sampleRequirements(offeringName: string): Record<string, any> {
     case "ai_agent_liveness_integration":
       return {
         agentFramework: "OpenClaw (version unknown)",
-        agentEndpoint: "https://example.com/health",
+        agentEndpoint: "https://your-agent.example.invalid/health (replace with actual endpoint)",
         monitoringRequirements: "Alert after 2 consecutive failures; 5m interval",
       };
 
@@ -80,7 +80,7 @@ function sampleRequirements(offeringName: string): Record<string, any> {
 
     case "code_review_and_optimization":
       return {
-        codeSource: "https://github.com/example/repo",
+        codeSource: "https://github.com/OWNER/REPO (replace with actual URL)",
         language: "TypeScript",
         focusAreas: "security, error-handling, performance",
       };

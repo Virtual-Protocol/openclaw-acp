@@ -667,7 +667,7 @@ export async function resourceInit(resourceName: string): Promise<void> {
   const resourceJson = {
     name: resourceName,
     description: "Describe what this resource provides",
-    url: "https://api.example.com/endpoint",
+    url: "https://api.example.invalid/endpoint (replace with actual API URL)",
   };
 
   fs.writeFileSync(
