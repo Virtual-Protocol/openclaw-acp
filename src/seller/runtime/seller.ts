@@ -10,8 +10,9 @@
 import { connectAcpSocket } from "./acpSocket.js";
 import { acceptOrRejectJob, requestPayment, deliverJob } from "./sellerApi.js";
 import { loadOffering, listOfferings } from "./offerings.js";
+import { ensureJobDir } from "./delivery.js";
 import { AcpJobPhase, type AcpJobEventData } from "./types.js";
-import type { ExecuteJobResult } from "./offeringTypes.js";
+import type { ExecuteJobResult, JobContext } from "./offeringTypes.js";
 import { getMyAgentInfo } from "../../lib/wallet.js";
 import {
   checkForExistingProcess,
@@ -56,33 +57,91 @@ const ACP_URL = "https://acpx.virtuals.io";
 
 // -- Job handling --
 
-function resolveOfferingName(data: AcpJobEventData): string | undefined {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseNegotiationMemo(
+  data: AcpJobEventData
+): Record<string, unknown> | undefined {
+  const negotiationMemo = data.memos.find(
+    (m) => m.nextPhase === AcpJobPhase.NEGOTIATION
+  );
+
+  if (!negotiationMemo) {
+    return undefined;
+  }
+
   try {
-    const negotiationMemo = data.memos.find(
-      (m) => m.nextPhase === AcpJobPhase.NEGOTIATION
-    );
-    if (negotiationMemo) {
-      return JSON.parse(negotiationMemo.content).name;
-    }
+    const parsed = JSON.parse(negotiationMemo.content);
+    return isPlainObject(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
 }
 
-function resolveServiceRequirements(
-  data: AcpJobEventData
-): Record<string, any> {
-  const negotiationMemo = data.memos.find(
-    (m) => m.nextPhase === AcpJobPhase.NEGOTIATION
-  );
-  if (negotiationMemo) {
-    try {
-      return JSON.parse(negotiationMemo.content).requirement;
-    } catch {
-      return {};
+function firstNonEmptyString(values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
     }
   }
-  return {};
+  return undefined;
+}
+
+function resolveOfferingName(data: AcpJobEventData): string | undefined {
+  const payload = parseNegotiationMemo(data);
+  if (!payload) {
+    return undefined;
+  }
+
+  return firstNonEmptyString([
+    payload.name,
+    payload.offeringName,
+    payload.offering,
+  ]);
+}
+
+function resolveServiceRequirements(data: AcpJobEventData): Record<string, any> {
+  const payload = parseNegotiationMemo(data);
+  if (!payload) {
+    return {};
+  }
+
+  const requirementsCandidate =
+    payload.requirement ?? payload.requirements ?? payload.serviceRequirements;
+
+  if (isPlainObject(requirementsCandidate)) {
+    return requirementsCandidate as Record<string, any>;
+  }
+
+  const reserved = new Set([
+    "name",
+    "offeringName",
+    "offering",
+    "requirement",
+    "requirements",
+    "serviceRequirements",
+  ]);
+
+  const inlineRequirements = Object.fromEntries(
+    Object.entries(payload).filter(([key]) => !reserved.has(key))
+  );
+
+  return Object.keys(inlineRequirements).length > 0
+    ? (inlineRequirements as Record<string, any>)
+    : {};
+}
+
+function buildJobContext(job: AcpJobEventData, offeringName: string): JobContext {
+  const { deliveryRoot, jobDir } = ensureJobDir(job.id);
+  return {
+    jobId: job.id,
+    offeringName,
+    deliveryRoot,
+    jobDir,
+    job,
+  };
 }
 
 async function handleNewTask(data: AcpJobEventData): Promise<void> {
@@ -90,9 +149,7 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
 
   console.log(`\n${"=".repeat(60)}`);
   console.log(
-    `[seller] New task  jobId=${jobId}  phase=${
-      AcpJobPhase[data.phase] ?? data.phase
-    }`
+    `[seller] New task  jobId=${jobId}  phase=${AcpJobPhase[data.phase] ?? data.phase}`
   );
   console.log(`         client=${data.clientAddress}  price=${data.price}`);
   console.log(`         context=${JSON.stringify(data.context)}`);
@@ -123,11 +180,13 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
       return;
     }
 
+    const ctx = buildJobContext(data, offeringName);
+
     try {
       const { config, handlers } = await loadOffering(offeringName);
 
       if (handlers.validateRequirements) {
-        const validationResult = handlers.validateRequirements(requirements);
+        const validationResult = handlers.validateRequirements(requirements, ctx);
 
         let isValid: boolean;
         let reason: string | undefined;
@@ -160,11 +219,11 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
 
       const funds =
         config.requiredFunds && handlers.requestAdditionalFunds
-          ? handlers.requestAdditionalFunds(requirements)
+          ? handlers.requestAdditionalFunds(requirements, ctx)
           : undefined;
 
       const paymentReason = handlers.requestPayment
-        ? handlers.requestPayment(requirements)
+        ? handlers.requestPayment(requirements, ctx)
         : funds?.content ?? "Request accepted";
 
       await requestPayment(jobId, {
@@ -188,14 +247,15 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
     const requirements = resolveServiceRequirements(data);
 
     if (offeringName) {
+      const ctx = buildJobContext(data, offeringName);
+
       try {
         const { handlers } = await loadOffering(offeringName);
         console.log(
           `[seller] Executing offering "${offeringName}" for job ${jobId} (TRANSACTION phase)...`
         );
-        const result: ExecuteJobResult = await handlers.executeJob(
-          requirements
-        );
+
+        const result: ExecuteJobResult = await handlers.executeJob(requirements, ctx);
 
         await deliverJob(jobId, {
           deliverable: result.deliverable,
@@ -214,9 +274,7 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
   }
 
   console.log(
-    `[seller] Job ${jobId} in phase ${
-      AcpJobPhase[data.phase] ?? data.phase
-    } — no action needed`
+    `[seller] Job ${jobId} in phase ${AcpJobPhase[data.phase] ?? data.phase} — no action needed`
   );
 }
 
@@ -240,9 +298,7 @@ async function main() {
 
   const offerings = listOfferings();
   console.log(
-    `[seller] Available offerings: ${
-      offerings.length > 0 ? offerings.join(", ") : "(none)"
-    }`
+    `[seller] Available offerings: ${offerings.length > 0 ? offerings.join(", ") : "(none)"}`
   );
 
   connectAcpSocket({
