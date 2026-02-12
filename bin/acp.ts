@@ -129,6 +129,23 @@ function buildHelp(): string {
     cmd("serve status", "Show seller runtime status"),
     cmd("serve logs", "Show recent seller logs"),
     flag("--follow, -f", "Tail logs in real time"),
+    flag("--offering <name>", "Filter logs by offering name"),
+    flag("--job <id>", "Filter logs by job ID"),
+    flag("--level <level>", "Filter logs by level (e.g. error)"),
+    "",
+    section("Cloud Deployment"),
+    cmd("serve deploy railway", "Deploy seller runtime to Railway"),
+    cmd("serve deploy railway setup", "First-time Railway project setup"),
+    cmd("serve deploy railway status", "Show remote deployment status"),
+    cmd("serve deploy railway logs", "Show remote deployment logs"),
+    flag("--follow, -f", "Tail logs in real time"),
+    flag("--offering <name>", "Filter logs by offering name"),
+    flag("--job <id>", "Filter logs by job ID"),
+    flag("--level <level>", "Filter logs by level (e.g. error)"),
+    cmd("serve deploy railway teardown", "Remove Railway deployment"),
+    cmd("serve deploy railway env", "List env vars on Railway"),
+    cmd("serve deploy railway env set", "Set env var (KEY=value)"),
+    cmd("serve deploy railway env delete", "Delete an env var"),
     "",
     section("Flags"),
     flag("--json", "Output raw JSON (for agents/scripts)"),
@@ -258,6 +275,44 @@ function buildCommandHelp(command: string): string | undefined {
       cmd("status", "Show whether the seller is running"),
       cmd("logs", "Show recent seller logs (last 50 lines)"),
       flag("--follow, -f", "Tail logs in real time (Ctrl+C to stop)"),
+      flag("--offering <name>", "Filter logs by offering name"),
+      flag("--job <id>", "Filter logs by job ID"),
+      flag("--level <level>", "Filter logs by level (e.g. error)"),
+      "",
+      cmd("deploy railway", "Deploy seller runtime to Railway"),
+      cmd("deploy railway setup", "First-time Railway project setup"),
+      cmd("deploy railway status", "Show remote deployment status"),
+      cmd("deploy railway logs", "Show remote deployment logs"),
+      flag("--follow, -f", "Tail logs in real time"),
+      flag("--offering <name>", "Filter logs by offering name"),
+      flag("--job <id>", "Filter logs by job ID"),
+      flag("--level <level>", "Filter logs by level (e.g. error)"),
+      cmd("deploy railway teardown", "Remove Railway deployment"),
+      cmd("deploy railway env", "List env vars on Railway"),
+      cmd("deploy railway env set KEY=val", "Set an env var"),
+      cmd("deploy railway env delete KEY", "Delete an env var"),
+      "",
+    ].join("\n"),
+
+    deploy: () => [
+      "",
+      `  ${bold("acp serve deploy")} ${dim("— Deploy seller runtime to the cloud")}`,
+      "",
+      `  ${dim("Workflow:")}`,
+      `    acp serve deploy railway setup    ${dim("# First-time setup")}`,
+      `    acp sell init my_service          ${dim("# Create offering")}`,
+      `    acp sell create my_service        ${dim("# Register on ACP")}`,
+      `    acp serve deploy railway          ${dim("# Deploy to Railway")}`,
+      "",
+      `  ${dim("Management:")}`,
+      `    acp serve deploy railway status       ${dim("# Check deployment")}`,
+      `    acp serve deploy railway logs -f      ${dim("# Tail logs")}`,
+      `    acp serve deploy railway teardown     ${dim("# Remove deployment")}`,
+      "",
+      `  ${dim("Environment Variables:")}`,
+      `    acp serve deploy railway env              ${dim("# List env vars")}`,
+      `    acp serve deploy railway env set KEY=val  ${dim("# Set an env var")}`,
+      `    acp serve deploy railway env delete KEY   ${dim("# Delete an env var")}`,
       "",
     ].join("\n"),
 
@@ -459,8 +514,47 @@ async function main(): Promise<void> {
       if (subcommand === "start") return serve.start();
       if (subcommand === "stop") return serve.stop();
       if (subcommand === "status") return serve.status();
-      if (subcommand === "logs")
-        return serve.logs(hasFlag(rest, "--follow", "-f"));
+      if (subcommand === "logs") {
+        const filter = {
+          offering: getFlagValue(rest, "--offering"),
+          job: getFlagValue(rest, "--job"),
+          level: getFlagValue(rest, "--level"),
+        };
+        return serve.logs(hasFlag(rest, "--follow", "-f"), filter);
+      }
+      if (subcommand === "deploy") {
+        const deploy = await import("../src/commands/deploy.js");
+        const provider = rest[0];
+        if (provider === "railway") {
+          const providerSub = rest[1];
+          if (!providerSub) return deploy.deploy();
+          if (providerSub === "setup") return deploy.setup();
+          if (providerSub === "status") return deploy.status();
+          if (providerSub === "logs") {
+            const logsArgs = rest.slice(2);
+            const filter = {
+              offering: getFlagValue(logsArgs, "--offering"),
+              job: getFlagValue(logsArgs, "--job"),
+              level: getFlagValue(logsArgs, "--level"),
+            };
+            return deploy.logs(
+              hasFlag(logsArgs, "--follow", "-f"),
+              filter
+            );
+          }
+          if (providerSub === "teardown") return deploy.teardown();
+          if (providerSub === "env") {
+            const envAction = rest[2];
+            if (!envAction) return deploy.env();
+            if (envAction === "set") return deploy.envSet(rest[3]);
+            if (envAction === "delete") return deploy.envDelete(rest[3]);
+            console.log(buildCommandHelp("deploy"));
+            return;
+          }
+        }
+        console.log(buildCommandHelp("deploy"));
+        return;
+      }
       console.log(buildCommandHelp("serve"));
       return;
     }

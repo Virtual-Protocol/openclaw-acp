@@ -14,6 +14,8 @@ import {
   findSellerPid,
   isProcessRunning,
   removePidFromConfig,
+  getActiveAgent,
+  sanitizeAgentName,
   ROOT,
   LOGS_DIR,
 } from "../lib/config.js";
@@ -24,7 +26,12 @@ const __dirname = path.dirname(__filename);
 // -- Start --
 
 const SELLER_LOG_PATH = path.resolve(LOGS_DIR, "seller.log");
-const OFFERINGS_ROOT = path.resolve(ROOT, "src", "seller", "offerings");
+
+function getOfferingsRoot(): string {
+  const agent = getActiveAgent();
+  const agentDir = agent ? sanitizeAgentName(agent.name) : "default";
+  return path.resolve(ROOT, "src", "seller", "offerings", agentDir);
+}
 
 function ensureLogsDir(): void {
   if (!fs.existsSync(LOGS_DIR)) {
@@ -33,7 +40,7 @@ function ensureLogsDir(): void {
 }
 
 function offeringHasLocalFiles(offeringName: string): boolean {
-  const dir = path.join(OFFERINGS_ROOT, offeringName);
+  const dir = path.join(getOfferingsRoot(), offeringName);
   return (
     fs.existsSync(path.join(dir, "handlers.ts")) &&
     fs.existsSync(path.join(dir, "offering.json"))
@@ -63,7 +70,7 @@ export async function start(): Promise<void> {
           `No local offering files for ${
             missing.length
           } offering(s) registered on ACP: ${missing.join(", ")}. ` +
-            `Each needs src/seller/offerings/<name>/handlers.ts and offering.json, or jobs for these offerings will fail at runtime.\n`
+            `Each needs handlers.ts and offering.json in the agent's offerings directory, or jobs for these offerings will fail at runtime.\n`
         );
       }
     }
@@ -169,7 +176,30 @@ export async function status(): Promise<void> {
 
 // -- Logs --
 
-export async function logs(follow: boolean = false): Promise<void> {
+export interface LogFilter {
+  offering?: string;
+  job?: string;
+  level?: string;
+}
+
+function hasActiveFilter(filter: LogFilter): boolean {
+  return !!(filter.offering || filter.job || filter.level);
+}
+
+function matchesFilter(line: string, filter: LogFilter): boolean {
+  const lower = line.toLowerCase();
+  if (filter.offering && !lower.includes(filter.offering.toLowerCase()))
+    return false;
+  if (filter.job && !line.includes(filter.job)) return false;
+  if (filter.level && !lower.includes(filter.level.toLowerCase()))
+    return false;
+  return true;
+}
+
+export async function logs(
+  follow: boolean = false,
+  filter: LogFilter = {}
+): Promise<void> {
   if (!fs.existsSync(SELLER_LOG_PATH)) {
     output.log(
       "  No log file found. Start the seller first: `acp serve start`\n"
@@ -177,11 +207,27 @@ export async function logs(follow: boolean = false): Promise<void> {
     return;
   }
 
+  const active = hasActiveFilter(filter);
+
   if (follow) {
-    // Tail -f equivalent: stream new lines as they appear
     const tail = spawn("tail", ["-f", SELLER_LOG_PATH], {
-      stdio: "inherit",
+      stdio: active ? ["ignore", "pipe", "pipe"] : "inherit",
     });
+
+    if (active && tail.stdout) {
+      let buffer = "";
+      tail.stdout.on("data", (chunk: Buffer) => {
+        buffer += chunk.toString();
+        const lines = buffer.split("\n");
+        buffer = lines.pop()!;
+        for (const line of lines) {
+          if (matchesFilter(line, filter)) {
+            process.stdout.write(line + "\n");
+          }
+        }
+      });
+    }
+
     // Keep running until user hits Ctrl+C
     await new Promise<void>((resolve) => {
       tail.on("close", () => resolve());
@@ -191,14 +237,21 @@ export async function logs(follow: boolean = false): Promise<void> {
       });
     });
   } else {
-    // Show the last 50 lines
+    // Show the last 50 lines (or last 50 matching lines if filtered)
     const content = fs.readFileSync(SELLER_LOG_PATH, "utf-8");
     const lines = content.split("\n");
-    const last50 = lines.slice(-51).join("\n"); // -51 because trailing newline
+    const filtered = active
+      ? lines.filter((l: string) => matchesFilter(l, filter))
+      : lines;
+    const last50 = filtered.slice(-51).join("\n"); // -51 because trailing newline
     if (last50.trim()) {
       output.log(last50);
     } else {
-      output.log("  Log file is empty.\n");
+      output.log(
+        active
+          ? "  No log lines matched the filter.\n"
+          : "  Log file is empty.\n"
+      );
     }
   }
 }

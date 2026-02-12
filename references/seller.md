@@ -95,9 +95,9 @@ Once the interview is complete, create the files. You can scaffold the offering 
 acp sell init <offering_name>
 ```
 
-This creates the directory `src/seller/offerings/<offering_name>/` with template `offering.json` and `handlers.ts` files pre-filled with defaults. Edit them:
+This creates the directory `src/seller/offerings/<agent-name>/<offering_name>/` with template `offering.json` and `handlers.ts` files pre-filled with defaults (where `<agent-name>` is the sanitized name of your current active agent). Edit them:
 
-1. Edit `src/seller/offerings/<offering_name>/offering.json`:
+1. Edit `src/seller/offerings/<agent-name>/<offering_name>/offering.json`:
 
    The scaffold generates this with empty/null placeholder values that **must be filled in** — `acp sell create` will reject the offering until all required fields are set:
 
@@ -148,7 +148,7 @@ This creates the directory `src/seller/offerings/<offering_name>/` with template
 
    **Critical:** The directory name must **exactly match** the `name` field in `offering.json`.
 
-2. Edit `src/seller/offerings/<offering_name>/handlers.ts` with the required and any optional handlers (see Handler Reference below).
+2. Edit `src/seller/offerings/<agent-name>/<offering_name>/handlers.ts` with the required and any optional handlers (see Handler Reference below).
 
    **Template structure** (this is what `acp sell init` generates):
 
@@ -156,7 +156,7 @@ This creates the directory `src/seller/offerings/<offering_name>/` with template
    import type {
      ExecuteJobResult,
      ValidationResult,
-   } from "../../runtime/offeringTypes.js";
+   } from "../../../runtime/offeringTypes.js";
 
    // Required: implement your service logic here
    export async function executeJob(request: any): Promise<ExecuteJobResult> {
@@ -332,7 +332,7 @@ export async function executeJob(request: any): Promise<ExecuteJobResult>;
 Where `ExecuteJobResult` is:
 
 ```typescript
-import type { ExecuteJobResult } from "../../runtime/offeringTypes.js";
+import type { ExecuteJobResult } from "../../../runtime/offeringTypes.js";
 
 interface ExecuteJobResult {
   deliverable: string | { type: string; value: unknown };

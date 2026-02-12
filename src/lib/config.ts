@@ -23,6 +23,19 @@ export interface AgentEntry {
   active: boolean;
 }
 
+export interface RailwayProjectConfig {
+  project: string;
+  environment: string;
+}
+
+export interface DeployInfo {
+  provider: string;
+  agentName: string;
+  offerings: string[];
+  deployedAt: string;
+  railwayConfig: RailwayProjectConfig;
+}
+
 export interface ConfigJson {
   SESSION_TOKEN?: {
     token: string;
@@ -30,6 +43,7 @@ export interface ConfigJson {
   LITE_AGENT_API_KEY?: string;
   SELLER_PID?: number;
   agents?: AgentEntry[];
+  DEPLOYS?: Record<string, DeployInfo>; // keyed by agent ID
 }
 
 export function readConfig(): ConfigJson {
@@ -183,6 +197,14 @@ export function activateAgent(agentId: string, apiKey: string): void {
     agents,
     LITE_AGENT_API_KEY: apiKey,
   });
+}
+
+/** Sanitize an agent name for use as a directory name. */
+export function sanitizeAgentName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
 export function formatPrice(price: unknown, priceType?: unknown): string {

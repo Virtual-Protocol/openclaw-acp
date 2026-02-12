@@ -24,13 +24,23 @@ import {
   type Resource,
 } from "../lib/api.js";
 import { getMyAgentInfo } from "../lib/wallet.js";
-import { formatPrice } from "../lib/config.js";
+import { formatPrice, getActiveAgent, sanitizeAgentName } from "../lib/config.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/** Offerings live at src/seller/offerings/ */
-const OFFERINGS_ROOT = path.resolve(__dirname, "..", "seller", "offerings");
+/** Offerings base: src/seller/offerings/ */
+const OFFERINGS_BASE = path.resolve(__dirname, "..", "seller", "offerings");
+
+/** Offerings root for the current agent: src/seller/offerings/<agent-name>/ */
+function getOfferingsRoot(): string {
+  const agent = getActiveAgent();
+  if (!agent) {
+    console.error("Error: No active agent. Run `acp setup` first.");
+    process.exit(1);
+  }
+  return path.resolve(OFFERINGS_BASE, sanitizeAgentName(agent.name));
+}
 
 /** Resources live at src/seller/resources/ */
 const RESOURCES_ROOT = path.resolve(__dirname, "..", "seller", "resources");
@@ -54,7 +64,7 @@ interface ValidationResult {
 }
 
 function resolveOfferingDir(offeringName: string): string {
-  return path.resolve(OFFERINGS_ROOT, offeringName);
+  return path.resolve(getOfferingsRoot(), offeringName);
 }
 
 function validateOfferingJson(filePath: string): ValidationResult {
@@ -257,7 +267,7 @@ export async function init(offeringName: string): Promise<void> {
     JSON.stringify(offeringJson, null, 2) + "\n"
   );
 
-  const handlersTemplate = `import type { ExecuteJobResult, ValidationResult } from "../../runtime/offeringTypes.js";
+  const handlersTemplate = `import type { ExecuteJobResult, ValidationResult } from "../../../runtime/offeringTypes.js";
 
 // Required: implement your service logic here
 export async function executeJob(request: any): Promise<ExecuteJobResult> {
@@ -280,9 +290,11 @@ export function requestPayment(request: any): string {
 
   fs.writeFileSync(path.join(dir, "handlers.ts"), handlersTemplate);
 
+  const agent = getActiveAgent();
+  const agentDir = agent ? sanitizeAgentName(agent.name) : "unknown";
   output.output({ created: dir }, () => {
     output.heading("Offering Scaffolded");
-    output.log(`  Created: src/seller/offerings/${offeringName}/`);
+    output.log(`  Created: src/seller/offerings/${agentDir}/${offeringName}/`);
     output.log(
       `    - offering.json  (edit name, description, fee, feeType, requirements)`
     );
@@ -407,13 +419,14 @@ interface LocalOffering {
 }
 
 function listLocalOfferings(): LocalOffering[] {
-  if (!fs.existsSync(OFFERINGS_ROOT)) return [];
+  const offeringsRoot = getOfferingsRoot();
+  if (!fs.existsSync(offeringsRoot)) return [];
 
   return fs
-    .readdirSync(OFFERINGS_ROOT, { withFileTypes: true })
+    .readdirSync(offeringsRoot, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => {
-      const configPath = path.join(OFFERINGS_ROOT, d.name, "offering.json");
+      const configPath = path.join(offeringsRoot, d.name, "offering.json");
       if (!fs.existsSync(configPath)) return null;
       try {
         const json = JSON.parse(fs.readFileSync(configPath, "utf-8"));
@@ -517,7 +530,7 @@ export async function list(): Promise<void> {
 // -- Inspect: detailed view --
 
 function detectHandlers(offeringDir: string): string[] {
-  const handlersPath = path.join(OFFERINGS_ROOT, offeringDir, "handlers.ts");
+  const handlersPath = path.join(getOfferingsRoot(), offeringDir, "handlers.ts");
   if (!fs.existsSync(handlersPath)) return [];
 
   const content = fs.readFileSync(handlersPath, "utf-8");

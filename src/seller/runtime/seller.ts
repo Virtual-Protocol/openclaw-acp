@@ -17,6 +17,7 @@ import {
   checkForExistingProcess,
   writePidToConfig,
   removePidFromConfig,
+  sanitizeAgentName,
 } from "../../lib/config.js";
 
 function setupCleanupHandlers(): void {
@@ -53,6 +54,7 @@ function setupCleanupHandlers(): void {
 // -- Config --
 
 const ACP_URL = "https://acpx.virtuals.io";
+let agentDirName: string = "";
 
 // -- Job handling --
 
@@ -124,7 +126,7 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
     }
 
     try {
-      const { config, handlers } = await loadOffering(offeringName);
+      const { config, handlers } = await loadOffering(offeringName, agentDirName);
 
       if (handlers.validateRequirements) {
         const validationResult = handlers.validateRequirements(requirements);
@@ -189,7 +191,7 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
 
     if (offeringName) {
       try {
-        const { handlers } = await loadOffering(offeringName);
+        const { handlers } = await loadOffering(offeringName, agentDirName);
         console.log(
           `[seller] Executing offering "${offeringName}" for job ${jobId} (TRANSACTION phase)...`
         );
@@ -233,12 +235,14 @@ async function main() {
   try {
     const agentData = await getMyAgentInfo();
     walletAddress = agentData.walletAddress;
+    agentDirName = sanitizeAgentName(agentData.name);
+    console.log(`[seller] Agent: ${agentData.name} (dir: ${agentDirName})`);
   } catch (err) {
-    console.error("[seller] Failed to resolve wallet address:", err);
+    console.error("[seller] Failed to resolve agent info:", err);
     process.exit(1);
   }
 
-  const offerings = listOfferings();
+  const offerings = listOfferings(agentDirName);
   console.log(
     `[seller] Available offerings: ${
       offerings.length > 0 ? offerings.join(", ") : "(none)"

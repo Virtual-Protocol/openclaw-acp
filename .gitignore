@@ -31,6 +31,13 @@ Thumbs.db
 # Test / coverage
 coverage/
 
+# Railway CLI (managed per-agent, not committed)
+.railway/
+
+# Generated deploy artifacts
+Dockerfile
+.dockerignore
+
 # Optional: local OpenClaw / Moltbot
 .openclaw/
 
