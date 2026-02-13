@@ -16,6 +16,19 @@ export interface AcpSocketOptions {
   callbacks: AcpSocketCallbacks;
 }
 
+type LogLevel = "info" | "warn" | "error";
+function slog(level: LogLevel, msg: string, fields: Record<string, any> = {}): void {
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level,
+      component: "acp-seller-socket",
+      msg,
+      ...fields,
+    })
+  );
+}
+
 /**
  * Connect to the ACP socket and start listening for seller events.
  * Returns a cleanup function that disconnects the socket.
@@ -24,52 +37,61 @@ export function connectAcpSocket(opts: AcpSocketOptions): () => void {
   const { acpUrl, walletAddress, callbacks } = opts;
 
   const socket: Socket = io(acpUrl, {
-    auth: { walletAddress },
+    auth: { walletAddress: walletAddress.toLowerCase() },
     transports: ["websocket"],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 500,
+    reconnectionDelayMax: 10_000,
+    timeout: 20_000,
   });
 
-  socket.on(
-    SocketEvent.ROOM_JOINED,
-    (_data: unknown, callback?: (ack: boolean) => void) => {
-      console.log("[socket] Joined ACP room");
-      if (typeof callback === "function") callback(true);
-    }
-  );
+  socket.on(SocketEvent.ROOM_JOINED, (_data: unknown, callback?: (ack: boolean) => void) => {
+    slog("info", "room joined");
+    if (typeof callback === "function") callback(true);
+  });
 
-  socket.on(
-    SocketEvent.ON_NEW_TASK,
-    (data: AcpJobEventData, callback?: (ack: boolean) => void) => {
-      if (typeof callback === "function") callback(true);
-      console.log(`[socket] onNewTask  jobId=${data.id}  phase=${data.phase}`);
-      callbacks.onNewTask(data);
-    }
-  );
+  socket.on(SocketEvent.ON_NEW_TASK, (data: AcpJobEventData, callback?: (ack: boolean) => void) => {
+    if (typeof callback === "function") callback(true);
+    slog("info", "onNewTask", { jobId: (data as any)?.id, phase: (data as any)?.phase });
+    callbacks.onNewTask(data);
+  });
 
-  socket.on(
-    SocketEvent.ON_EVALUATE,
-    (data: AcpJobEventData, callback?: (ack: boolean) => void) => {
-      if (typeof callback === "function") callback(true);
-      console.log(`[socket] onEvaluate  jobId=${data.id}  phase=${data.phase}`);
-      if (callbacks.onEvaluate) {
-        callbacks.onEvaluate(data);
-      }
-    }
-  );
+  socket.on(SocketEvent.ON_EVALUATE, (data: AcpJobEventData, callback?: (ack: boolean) => void) => {
+    if (typeof callback === "function") callback(true);
+    slog("info", "onEvaluate", { jobId: (data as any)?.id, phase: (data as any)?.phase });
+    callbacks.onEvaluate?.(data);
+  });
 
   socket.on("connect", () => {
-    console.log("[socket] Connected to ACP");
+    slog("info", "connected", { socketId: socket.id });
   });
 
   socket.on("disconnect", (reason) => {
-    console.log(`[socket] Disconnected: ${reason}`);
+    slog("warn", "disconnected", { reason });
   });
 
   socket.on("connect_error", (err) => {
-    console.error(`[socket] Connection error: ${err.message}`);
+    slog("error", "connect_error", { message: err?.message ?? String(err) });
+  });
+
+  // Reconnect lifecycle (socket.io Manager events)
+  socket.io.on("reconnect_attempt", (attempt) => {
+    slog("warn", "reconnect_attempt", { attempt });
+  });
+  socket.io.on("reconnect", (attempt) => {
+    slog("info", "reconnected", { attempt });
+  });
+  socket.io.on("reconnect_error", (err) => {
+    slog("warn", "reconnect_error", { message: err?.message ?? String(err) });
   });
 
   const disconnect = () => {
-    socket.disconnect();
+    try {
+      socket.disconnect();
+    } catch {
+      // ignore
+    }
   };
 
   process.on("SIGINT", () => {

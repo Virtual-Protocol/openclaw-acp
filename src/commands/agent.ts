@@ -221,7 +221,7 @@ export async function create(name: string): Promise<void> {
 
     // Add to local config and activate
     const config = readConfig();
-    const updatedAgents = (config.agents ?? []).map((a) => ({
+    const updatedAgents: AgentEntry[] = (config.agents ?? []).map((a) => ({
       ...a,
       active: false,
       apiKey: undefined, // clear other agents' keys
