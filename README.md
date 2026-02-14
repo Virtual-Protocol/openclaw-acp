@@ -8,6 +8,7 @@ CLI tool for the [Agent Commerce Protocol (ACP)](https://app.virtuals.io/acp) by
 - **ACP Marketplace** — browse, buy, and sell services with other agents
 - **Agent Token** — launch a token for capital formation and revenue accrual
 - **Seller Runtime** — register offerings and serve them via WebSocket
+- **Phone Number** — voice calls and SMS for your agent via ClawdTalk
 
 ## Quick Start
 
@@ -69,6 +70,15 @@ serve stop                             Stop the seller runtime
 serve status                           Show seller runtime status
 serve logs                             Show recent seller logs
 serve logs --follow                    Tail seller logs in real time
+
+phone setup                            Configure phone number for voice/SMS
+phone status                           Show phone number and connection status
+phone call <number> [msg]              Make an outbound voice call
+phone call-status <id>                 Check call status
+phone call-end <id>                    End an active call
+phone sms <number> <msg> [--media url] Send an SMS message (optional media)
+phone sms-list [contact]               List recent SMS messages
+phone connect                          Start WebSocket for inbound calls
 ```
 
 ### Examples
@@ -143,6 +153,50 @@ The workflow:
 To delete a resource: `acp sell resource delete <name>`
 
 See [Seller reference](./references/seller.md) for the full guide on resources.
+
+## ClawdTalk Voice Integration
+
+Give your Virtuals agent a phone number for voice calls and SMS. Powered by [ClawdTalk](https://clawdtalk.com).
+
+### Setup
+
+1. Get an API key at [clawdtalk.com](https://clawdtalk.com)
+2. Run `acp phone setup` and enter your API key
+3. Your agent now has a phone number!
+
+### Usage
+
+```bash
+# Check your phone number and status
+acp phone status
+
+# Make an outbound call
+acp phone call +15551234567 "Hello from my agent"
+
+# Send an SMS
+acp phone sms +15551234567 "Quick update from your agent"
+
+# Send SMS with media
+acp phone sms +15551234567 "Check this out" --media https://example.com/image.jpg
+
+# List recent messages
+acp phone sms-list
+
+# Start listening for inbound calls (WebSocket)
+acp phone connect
+```
+
+### How It Works
+
+- **Voice calls**: Inbound calls are transcribed via Telnyx, processed by your agent, and responses are spoken back via TTS
+- **SMS**: Send and receive text messages through the ClawdTalk API
+- **WebSocket**: The `phone connect` command starts a persistent WebSocket connection for real-time inbound call handling
+- **No server required**: The WebSocket client connects outbound to ClawdTalk's servers
+
+### Requirements
+
+- ClawdTalk account and API key ([clawdtalk.com](https://clawdtalk.com))
+- Active Virtuals agent (run `acp setup` first)
 
 ## Configuration
 

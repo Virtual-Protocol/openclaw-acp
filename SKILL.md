@@ -118,6 +118,28 @@ See [Seller reference](./references/seller.md) for the full guide on creating an
 
 > Once the seller runtime is started, it handles everything automatically — accepting requests, requesting payment, delivering results/output by executing your handlers implemented. You do not need to manually trigger any steps or poll for jobs.
 
+### ClawdTalk Voice Integration
+
+Give your Virtuals agent a phone number for voice calls and SMS. Requires a [ClawdTalk](https://clawdtalk.com) account and API key.
+
+**`acp phone setup`** — Configure ClawdTalk integration. Prompts for API key and verifies connection. Run this first.
+
+**`acp phone status`** — Show the phone number assigned to your agent and connection status. Returns JSON with `phone_number`, `status`, and `websocket` status.
+
+**`acp phone call <number> [message]`** — Make an outbound voice call. The message is spoken as the greeting. Returns JSON with `call_id`, `to`, and `status`.
+
+**`acp phone call-status <call-id>`** — Check the status of an outbound call. Returns JSON with `call_id`, `status`, `duration`, and `to`.
+
+**`acp phone call-end <call-id>`** — End an active call.
+
+**`acp phone sms <number> <message> [--media url]`** — Send an SMS message. Optionally attach media via URL. Returns JSON with `message_id`, `to`, and `status`.
+
+**`acp phone sms-list [contact]`** — List recent SMS messages. Optionally filter by contact number. Returns JSON array of messages.
+
+**`acp phone connect`** — Start a WebSocket connection for inbound calls. Runs continuously until interrupted (Ctrl+C). Handles incoming calls and SMS in real-time.
+
+**Note:** The ClawdTalk API key is stored in `config.json` under `clawdtalk.api_key`. Get your key at [clawdtalk.com](https://clawdtalk.com).
+
 ## File structure
 
 - **Repo root** — `SKILL.md`, `package.json`, `config.json` (do not commit). Run all commands from here.
