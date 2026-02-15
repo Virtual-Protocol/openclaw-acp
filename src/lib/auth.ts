@@ -3,7 +3,6 @@
 // Shared by setup.ts, agent.ts, and any command needing session-based APIs.
 // =============================================================================
 
-import readline from "readline";
 import axios, { type AxiosInstance } from "axios";
 import * as output from "./output.js";
 import { openUrl } from "./open.js";
@@ -147,83 +146,78 @@ export async function regenerateApiKey(
   return data.data;
 }
 
-// -- Interactive login --
+// -- Login (polling-based, no stdin required) --
 
-function question(
-  rl: readline.Interface,
-  prompt: string
-): Promise<string> {
-  return new Promise((resolve) => rl.question(prompt, resolve));
+/** How often to poll the auth status endpoint (ms). */
+const AUTH_POLL_INTERVAL_MS = 5_000;
+
+/** How long to wait for the user to authenticate before timing out (ms). */
+const AUTH_TIMEOUT_MS = 5 * 60 * 1_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Interactive login flow. Opens browser, waits for user to authenticate.
- * Can be called with an existing readline interface (from setup) or creates its own.
+ * Login flow. Opens browser / prints link, then polls until authenticated
+ * or timed out. No stdin interaction required — works in any runtime.
  */
-export async function interactiveLogin(rl?: readline.Interface): Promise<void> {
-  const ownsRl = !rl;
-  if (!rl) {
-    rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-  }
-
+export async function interactiveLogin(): Promise<void> {
+  let auth: AuthUrlResponse;
   try {
-    let authDone = false;
-    while (!authDone) {
-      let authUrl: string;
-      let requestId: string;
-      try {
-        const auth = await getAuthUrl();
-        authUrl = auth.authUrl;
-        requestId = auth.requestId;
-      } catch (e) {
-        output.error(
-          `Could not get login link: ${e instanceof Error ? e.message : String(e)}`
-        );
-        await question(rl, "Press Enter to retry or Ctrl+C to exit.");
-        continue;
-      }
-
-      output.log(`  Opening browser...`);
-      openUrl(authUrl);
-      output.log(`  Login link: ${authUrl}\n`);
-      output.log("  Complete login in your browser, then press ENTER.\n");
-      await question(rl, "");
-
-      try {
-        const status = await getAuthStatus(requestId);
-        if (status.token) {
-          storeSessionToken(status.token);
-          output.success("Login success. Session stored (expires in 30 minutes).\n");
-          authDone = true;
-        } else {
-          output.log("  Login incomplete. Press ENTER to retry or Ctrl+C to exit.\n");
-          await question(rl, "");
-        }
-      } catch (e) {
-        output.error(
-          `Login check failed: ${e instanceof Error ? e.message : String(e)}`
-        );
-        await question(rl, "Press ENTER to retry or Ctrl+C to exit.\n");
-      }
-    }
-  } finally {
-    if (ownsRl) rl.close();
+    auth = await getAuthUrl();
+  } catch (e) {
+    output.fatal(
+      `Could not get login link: ${e instanceof Error ? e.message : String(e)}`
+    );
   }
+
+  const { authUrl, requestId } = auth;
+  output.log(`  Opening browser...`);
+  openUrl(authUrl);
+  output.log(`  Login link: ${authUrl}\n`);
+  output.log(`  Waiting for authentication (timeout: ${AUTH_TIMEOUT_MS / 1_000}s)...\n`);
+
+  const deadline = Date.now() + AUTH_TIMEOUT_MS;
+  let elapsed = 0;
+
+  while (Date.now() < deadline) {
+    await sleep(AUTH_POLL_INTERVAL_MS);
+    elapsed += AUTH_POLL_INTERVAL_MS;
+
+    try {
+      const status = await getAuthStatus(requestId);
+      if (status.token) {
+        storeSessionToken(status.token);
+        output.success("Login success. Session stored.\n");
+        return;
+      }
+    } catch {
+      // Auth not ready yet or transient error — keep polling
+    }
+
+    // Progress indicator every 15s (3 polls)
+    if (elapsed % 15_000 === 0) {
+      const remaining = Math.round((deadline - Date.now()) / 1_000);
+      output.log(`  Still waiting... (${remaining}s remaining)`);
+    }
+  }
+
+  output.fatal(
+    `Authentication timed out after ${AUTH_TIMEOUT_MS / 1_000}s. Run \`acp login\` to try again.`
+  );
 }
 
 /**
  * Ensure we have a valid session token. If expired/missing, auto-prompts login.
  * Returns the valid session token, or calls process.exit if login fails.
  */
-export async function ensureSession(rl?: readline.Interface): Promise<string> {
+export async function ensureSession(): Promise<string> {
   const existing = getValidSessionToken();
   if (existing) return existing;
 
   output.warn("Session expired or not found. Logging in...\n");
-  await interactiveLogin(rl);
+  await interactiveLogin();
 
   const token = getValidSessionToken();
   if (!token) {
