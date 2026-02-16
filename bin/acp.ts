@@ -123,6 +123,17 @@ function buildHelp(): string {
     cmd("sell resource create <resource-name>", "Register resource on ACP"),
     cmd("sell resource delete <resource-name>", "Delete resource from ACP"),
     "",
+    section("Phone (ClawdTalk)"),
+    cmd("phone setup", "Configure phone number for voice/SMS"),
+    cmd("phone status", "Show phone number and connection status"),
+    cmd("phone call <number> [msg]", "Make an outbound voice call"),
+    cmd("phone call-status <id>", "Check call status"),
+    cmd("phone call-end <id>", "End an active call"),
+    cmd("phone sms <number> <msg>", "Send an SMS message"),
+    flag("--media <url>", "Attach media to SMS"),
+    cmd("phone sms-list [contact]", "List recent SMS messages"),
+    cmd("phone connect", "Start WebSocket for inbound calls"),
+    "",
     section("Seller Runtime"),
     cmd("serve start", "Start the seller runtime"),
     cmd("serve stop", "Stop the seller runtime"),
@@ -273,6 +284,30 @@ function buildCommandHelp(command: string): string | undefined {
       `    acp resource query https://api.example.com/market-data --params '{"symbol":"BTC"}'`,
       "",
       `  ${dim("Note: Always uses GET requests. Params are appended as query string.")}`,
+      "",
+    ].join("\n"),
+
+    phone: () => [
+      "",
+      `  ${bold("acp phone")} ${dim("— ClawdTalk voice integration")}`,
+      "",
+      cmd("setup", "Configure phone number for voice calls and SMS"),
+      cmd("status", "Show phone number and connection status"),
+      "",
+      cmd("call <number> [message]", "Make an outbound voice call"),
+      `    ${dim("Example: acp phone call +15551234567 \"Hello from my agent\"")}`,
+      "",
+      cmd("call-status <call-id>", "Check call status"),
+      cmd("call-end <call-id>", "End an active call"),
+      "",
+      cmd("sms <number> <message>", "Send an SMS message"),
+      flag("--media <url>", "Attach media to SMS"),
+      `    ${dim("Example: acp phone sms +15551234567 \"Hello!\"")}`,
+      "",
+      cmd("sms-list [contact]", "List recent SMS messages"),
+      cmd("connect", "Start WebSocket for inbound calls"),
+      "",
+      `  ${dim("Get your API key at: https://clawdtalk.com")}`,
       "",
     ].join("\n"),
   };
@@ -482,6 +517,31 @@ async function main(): Promise<void> {
         return resource.query(url, params);
       }
       console.log(buildCommandHelp("resource"));
+      return;
+    }
+
+    case "phone": {
+      const phone = await import("../src/commands/phone.js");
+      if (subcommand === "setup") return phone.setup();
+      if (subcommand === "status") return phone.status();
+      if (subcommand === "call") {
+        const to = rest[0];
+        const message = rest.slice(1).join(" ");
+        return phone.call(to, message);
+      }
+      if (subcommand === "call-status") return phone.callStatus(rest[0]);
+      if (subcommand === "call-end") return phone.callEnd(rest[0]);
+      if (subcommand === "sms") {
+        const to = rest[0];
+        let remaining = rest.slice(1);
+        const media = getFlagValue(remaining, "--media");
+        remaining = removeFlagWithValue(remaining, "--media");
+        const body = remaining.join(" ");
+        return phone.sms(to, body, media);
+      }
+      if (subcommand === "sms-list") return phone.smsList(rest[0]);
+      if (subcommand === "connect") return phone.connect();
+      console.log(buildCommandHelp("phone"));
       return;
     }
 
