@@ -103,12 +103,6 @@ function buildHelp(): string {
     section("Marketplace"),
     cmd("search <query>", "Search agents with filters & reranking"),
     flag("--mode <hybrid|vector|keyword>", "Search strategy (default: hybrid)"),
-    flag(
-      "--graduation <graduated|ungraduated|all>",
-      "Graduation filter (default: graduated)"
-    ),
-    flag("--online <online|offline|all>", "Online filter (default: online)"),
-    flag("--claw", "Search OpenClaw agents only"),
     flag("--contains <text>", "Keep results containing these terms"),
     flag("--match <all|any>", "Term matching for --contains (default: all)"),
     "",
@@ -185,6 +179,7 @@ function buildCommandHelp(command: string): string | undefined {
     search: () => [
       "",
       `  ${bold("acp search <query>")} ${dim("— Search agents with filters & reranking")}`,
+      `  ${dim("Search pool: online agents that are either graduated or in the OpenClaw cluster.")}`,
       "",
       `  ${cyan("Search Mode")}`,
       flag("--mode <hybrid|vector|keyword>", "Search strategy (default: hybrid)"),
@@ -194,12 +189,6 @@ function buildCommandHelp(command: string): string | undefined {
       `    ${dim("Indexed data: agent name, agent description, and job descriptions.")}`,
       "",
       `  ${cyan("Filters")}`,
-      flag(
-        "--graduation <graduated|ungraduated|all>",
-        "Graduation filter (default: graduated)"
-      ),
-      flag("--online <online|offline|all>", "Online filter (default: online)"),
-      flag("--claw", "Search OpenClaw agents only (skips graduation filter)"),
       flag("--contains <text>", "Keep results containing these terms"),
       flag("--match <all|any>", "Term matching for --contains (default: all)"),
       "",
@@ -211,7 +200,8 @@ function buildCommandHelp(command: string): string | undefined {
       flag("--similarity-cutoff <0-1>", "Min vector similarity score (default: 0.5)"),
       flag("--sparse-cutoff <float>", "Min keyword score, keyword mode only (default: 0.0)"),
       "",
-      `  ${dim("Defaults: mode=hybrid, graduation=graduated, online=online, rerank weight=0.97")}`,
+      `  ${dim("Defaults: mode=hybrid, rerank weight=0.97, similarity cutoff=0.5")}`,
+      `  ${dim("Search pool: online agents that are either graduated or in the OpenClaw cluster")}`,
       "",
     ].join("\n"),
 
@@ -381,23 +371,6 @@ async function main(): Promise<void> {
       | undefined;
     searchArgs = removeFlagWithValue(searchArgs, "--mode");
 
-    const graduationValue = getFlagValue(searchArgs, "--graduation") as
-      | "graduated"
-      | "ungraduated"
-      | "all"
-      | undefined;
-    searchArgs = removeFlagWithValue(searchArgs, "--graduation");
-
-    const online = getFlagValue(searchArgs, "--online") as
-      | "online"
-      | "offline"
-      | "all"
-      | undefined;
-    searchArgs = removeFlagWithValue(searchArgs, "--online");
-
-    const claw = hasFlag(searchArgs, "--claw") ? true : undefined;
-    searchArgs = removeFlags(searchArgs, "--claw");
-
     const contains = getFlagValue(searchArgs, "--contains");
     searchArgs = removeFlagWithValue(searchArgs, "--contains");
 
@@ -416,18 +389,11 @@ async function main(): Promise<void> {
     const sparCutoff = getFlagValue(searchArgs, "--sparse-cutoff");
     searchArgs = removeFlagWithValue(searchArgs, "--sparse-cutoff");
 
-    // Graduation filter
-    let graduation: "graduated" | "ungraduated" | "all" | undefined;
-    if (graduationValue) graduation = graduationValue;
-
     // Remaining args (non-flags) form the query
     const query = searchArgs.filter((a) => a && !a.startsWith("-")).join(" ");
 
     return search(query, {
       mode,
-      graduation,
-      online,
-      claw,
       contains,
       match: matchVal,
       performanceWeight: perfWeight !== undefined ? parseFloat(perfWeight) : undefined,

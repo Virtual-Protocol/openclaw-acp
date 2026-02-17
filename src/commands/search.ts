@@ -12,9 +12,6 @@ const SEARCH_URL =
 
 export interface SearchOptions {
   mode?: "hybrid" | "vector" | "keyword";
-  graduation?: "graduated" | "ungraduated" | "all";
-  online?: "online" | "offline" | "all";
-  claw?: boolean;
   contains?: string;
   match?: "all" | "any";
   performanceWeight?: number;
@@ -74,7 +71,6 @@ interface Agent {
 
 export const SEARCH_DEFAULTS = {
   mode: "hybrid" as const,
-  online: "online" as const,
   performanceWeight: 0.97,
   similarityCutoff: 0.5,
   sparseCutoff: 0.0,
@@ -93,6 +89,7 @@ const MODE_MAP: Record<string, string> = {
 
 function buildParams(query: string, opts: SearchOptions): Record<string, string> {
   const params: Record<string, string> = { query };
+  params.claw = "true";
 
   // Search mode
   if (opts.mode) {
@@ -103,20 +100,6 @@ function buildParams(query: string, opts: SearchOptions): Record<string, string>
     params.searchMode = apiMode;
   }
 
-  // Filters
-  const online = opts.online ?? SEARCH_DEFAULTS.online;
-  if (online === "online") params.isOnline = "true";
-  else if (online === "offline") params.isOnline = "false";
-
-  // Graduation: --claw implies "all" (no claw agents are graduated yet)
-  const graduation = opts.claw
-    ? (opts.graduation ?? "all")
-    : (opts.graduation ?? "graduated");
-  if (graduation === "graduated") params.hasGraduated = "true";
-  else if (graduation === "ungraduated") params.hasGraduated = "false";
-
-  if (opts.claw) params.cluster = "OPENCLAW";
-
   // String filters
   if (opts.contains) params.fullTextFilter = opts.contains;
   if (opts.match) params.fullTextMatch = opts.match;
@@ -124,8 +107,7 @@ function buildParams(query: string, opts: SearchOptions): Record<string, string>
   // Reranking (always on)
   if (opts.performanceWeight !== undefined)
     params.performanceWeight = String(opts.performanceWeight);
-  if (opts.similarityCutoff !== undefined)
-    params.similarityCutoff = String(opts.similarityCutoff);
+  params.similarityCutoff = String(opts.similarityCutoff ?? SEARCH_DEFAULTS.similarityCutoff);
   if (opts.sparseCutoff !== undefined)
     params.sparseCutoff = String(opts.sparseCutoff);
 
@@ -207,13 +189,6 @@ function formatSummary(opts: SearchOptions): string {
 
   // Active filters
   const filters: string[] = [];
-  const graduation = opts.claw
-    ? (opts.graduation ?? "all")
-    : (opts.graduation ?? "graduated");
-  if (graduation !== "all") filters.push(graduation);
-  const online = opts.online ?? SEARCH_DEFAULTS.online;
-  if (online !== "all") filters.push(online);
-  if (opts.claw) filters.push("claw");
   if (opts.contains) {
     const m = opts.match ?? SEARCH_DEFAULTS.match;
     filters.push(`contains="${opts.contains}" (match=${m})`);
@@ -233,16 +208,6 @@ export async function search(query: string, opts: SearchOptions): Promise<void> 
   // Validate: --match requires --contains
   if (opts.match && !opts.contains) {
     output.fatal("--match requires --contains");
-  }
-
-  if (opts.online && !["online", "offline", "all"].includes(opts.online)) {
-    output.fatal(`Invalid online filter "${opts.online}". Use: online, offline, all`);
-  }
-
-  if (opts.graduation && !["graduated", "ungraduated", "all"].includes(opts.graduation)) {
-    output.fatal(
-      `Invalid graduation filter "${opts.graduation}". Use: graduated, ungraduated, all`
-    );
   }
 
   const params = buildParams(query, opts);
