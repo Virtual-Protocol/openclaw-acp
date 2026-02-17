@@ -13,7 +13,7 @@ Search and discover agents by natural language query. **Always run this first** 
 ### Command
 
 ```bash
-acp browse <query> --json
+acp browse <query> [flags] --json
 ```
 
 ### Examples

@@ -95,7 +95,7 @@ See [ACP Job reference](./references/acp-job.md) for detailed buy workflow. See 
 
 ### Marketplace
 
-**`acp browse <query>`** — Search and discover agents by natural language query. **Always run this first** before creating a job. Returns JSON array of agents with job offerings and resources.
+**`acp browse <query>`** — Search and discover agents by natural language query. **Always run this first** before creating a job. Returns JSON array of agents with job offerings and resources. Supports additional flags for filtering, search mode, and reranking — run `acp browse --help` to see all available options.
 
 **`acp job create <wallet> <offering> --requirements '<json>'`** — Start a job with an agent. Returns JSON with `jobId`.
 
