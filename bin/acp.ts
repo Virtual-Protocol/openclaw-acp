@@ -137,6 +137,23 @@ function buildHelp(): string {
     cmd("sell resource delete <resource-name>", "Delete resource from ACP"),
     cmd("sell resource list", "Show all resources with status"),
     "",
+    section("Compute (LLM Credits)"),
+    cmd("compute setup", "Enable self-funding LLM compute"),
+    flag("--topup-amount <usd>", "USD to add when balance is low (default: 10)"),
+    flag("--threshold <usd>", "Balance threshold for auto top-up (default: 5)"),
+    flag("--monthly-limit <usd>", "Max monthly spend cap (default: 100)"),
+    flag("--model <id>", "Preferred model (e.g. anthropic/claude-sonnet-4-20250514)"),
+    cmd("compute status", "Show compute balance, mode, and config"),
+    cmd("compute topup <amount>", "Manually top up LLM credits (USD)"),
+    cmd("compute config", "Update compute configuration"),
+    flag("--threshold <usd>", "Update auto top-up threshold"),
+    flag("--topup-amount <usd>", "Update auto top-up amount"),
+    flag("--monthly-limit <usd>", "Update monthly spend cap"),
+    flag("--model <id>", "Update preferred model"),
+    cmd("compute history", "Show top-up transaction history"),
+    cmd("compute models", "List available models with pricing"),
+    cmd("compute disable", "Disable compute for this agent"),
+    "",
     section("Seller Runtime"),
     cmd("serve start", "Start the seller runtime"),
     cmd("serve stop", "Stop the seller runtime"),
@@ -367,6 +384,39 @@ function buildCommandHelp(command: string): string | undefined {
         `    acp serve deploy railway env              ${dim("# List env vars")}`,
         `    acp serve deploy railway env set KEY=val  ${dim("# Set an env var")}`,
         `    acp serve deploy railway env delete KEY   ${dim("# Delete an env var")}`,
+        "",
+      ].join("\n"),
+
+    compute: () =>
+      [
+        "",
+        `  ${bold("acp compute")} ${dim("— Manage self-funding LLM compute credits")}`,
+        "",
+        `  ${dim("Agent wallet on Base → auto-funds LLM credits → OpenRouter.")}`,
+        `  ${dim("Use your existing ACP key for inference at the Virtuals LLM endpoint.")}`,
+        "",
+        cmd("setup", "Enable compute for this agent"),
+        flag("--topup-amount <usd>", "USD to add when balance is low (default: 10)"),
+        flag("--threshold <usd>", "Balance threshold for auto top-up (default: 5)"),
+        flag("--monthly-limit <usd>", "Max monthly spend cap (default: 100)"),
+        flag("--model <id>", "Preferred model (default: anthropic/claude-sonnet-4-20250514)"),
+        "",
+        cmd("status", "Show compute balance, mode, and config"),
+        cmd("topup <amount>", "Manually top up credits (USD amount)"),
+        "",
+        cmd("config", "Update compute configuration"),
+        flag("--threshold <usd>", "Update auto top-up threshold"),
+        flag("--topup-amount <usd>", "Update auto top-up amount"),
+        flag("--monthly-limit <usd>", "Update monthly spend cap"),
+        flag("--model <id>", "Update preferred model"),
+        "",
+        cmd("history", "Show top-up transaction history"),
+        cmd("models", "List available models with pricing"),
+        cmd("disable", "Disable compute for this agent"),
+        "",
+        `  ${dim("Modes: FULL → ECONOMY → LOW → HIBERNATING")}`,
+        `  ${dim("When credits run low, models auto-downgrade to save costs.")}`,
+        `  ${dim("When wallet refills, auto-top-up restores full mode.")}`,
         "",
       ].join("\n"),
 
@@ -654,6 +704,55 @@ async function main(): Promise<void> {
         return;
       }
       console.log(buildCommandHelp("serve"));
+      return;
+    }
+
+    case "compute": {
+      const compute = await import("../src/commands/compute.js");
+      if (subcommand === "setup") {
+        const topUpAmount = getFlagValue(rest, "--topup-amount");
+        const threshold = getFlagValue(rest, "--threshold");
+        const monthlyLimit = getFlagValue(rest, "--monthly-limit");
+        const model = getFlagValue(rest, "--model");
+        return compute.setup({
+          topUpAmount: topUpAmount != null ? Number(topUpAmount) : undefined,
+          lowBalanceThreshold: threshold != null ? Number(threshold) : undefined,
+          maxMonthlySpend: monthlyLimit != null ? Number(monthlyLimit) : undefined,
+          preferredModel: model,
+        });
+      }
+      if (subcommand === "status") return compute.status();
+      if (subcommand === "topup") {
+        const amount = Number(rest[0]);
+        if (!rest[0] || isNaN(amount) || amount <= 0) {
+          console.error("Error: Provide a positive USD amount. Usage: acp compute topup <amount>");
+          process.exit(1);
+        }
+        return compute.topup(amount);
+      }
+      if (subcommand === "config") {
+        const threshold = getFlagValue(rest, "--threshold");
+        const topUpAmount = getFlagValue(rest, "--topup-amount");
+        const monthlyLimit = getFlagValue(rest, "--monthly-limit");
+        const model = getFlagValue(rest, "--model");
+        return compute.config({
+          lowBalanceThreshold: threshold != null ? Number(threshold) : undefined,
+          topUpAmount: topUpAmount != null ? Number(topUpAmount) : undefined,
+          maxMonthlySpend: monthlyLimit != null ? Number(monthlyLimit) : undefined,
+          preferredModel: model,
+        });
+      }
+      if (subcommand === "history") {
+        const page = getFlagValue(rest, "--page");
+        const pageSize = getFlagValue(rest, "--pageSize");
+        return compute.history({
+          page: page != null ? Number(page) : undefined,
+          pageSize: pageSize != null ? Number(pageSize) : undefined,
+        });
+      }
+      if (subcommand === "models") return compute.models();
+      if (subcommand === "disable") return compute.disable();
+      console.log(buildCommandHelp("compute"));
       return;
     }
 
