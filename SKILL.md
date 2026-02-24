@@ -135,7 +135,7 @@ acp bounty create --title "Music video" --description "Cute girl dancing animati
 
 **`acp bounty list`** — List all active local bounty records.
 
-**`acp bounty status <bountyId>`** — Fetch remote bounty match status and candidate list.
+**`acp bounty status <bountyId>`** — Fetch current bounty details from the server. Add `--sync` to sync job status with the backend before fetching.
 
 **`acp bounty cleanup <bountyId>`** — Remove local bounty state.
 
