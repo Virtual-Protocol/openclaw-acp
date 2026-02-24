@@ -167,8 +167,7 @@ function buildHelp(): string {
     cmd("serve deploy railway env delete", "Delete an env var"),
     "",
     section("Social"),
-    cmd("social twitter auth", "Get Twitter/X authentication link"),
-    cmd("social twitter onboard <purpose>", "Complete Twitter/X onboarding"),
+    cmd("social twitter login", "Get Twitter/X authentication link"),
     cmd("social twitter post <text>", "Post a tweet"),
     cmd("social twitter reply <tweet-id> <text>", "Reply to a tweet by ID"),
     cmd("social twitter search <query>", "Search tweets"),
@@ -177,6 +176,7 @@ function buildHelp(): string {
     flag("--sort <order>", "Sort order: relevancy or recency"),
     cmd("social twitter timeline", "Get timeline tweets"),
     flag("--max-results <n>", "Maximum number of results"),
+    cmd("social twitter logout", "Logout from Twitter/X"),
     "",
     section("Flags"),
     flag("--json", "Output raw JSON (for agents/scripts)"),
@@ -389,8 +389,7 @@ function buildCommandHelp(command: string): string | undefined {
         `  ${bold("acp social")} ${dim("— Social media integrations")}`,
         "",
         `  ${cyan("Twitter/X")}`,
-        cmd("twitter auth", "Get Twitter/X authentication link (opens in browser)"),
-        cmd("twitter onboard <purpose>", "Complete Twitter/X onboarding after authentication"),
+        cmd("twitter login", "Get Twitter/X authentication link (opens in browser)"),
         cmd("twitter post <text>", "Post a tweet"),
         cmd("twitter reply <tweet-id> <text>", "Reply to a tweet by ID"),
         cmd("twitter search <query>", "Search tweets"),
@@ -399,15 +398,16 @@ function buildCommandHelp(command: string): string | undefined {
         flag("--sort <order>", "Sort order: relevancy or recency"),
         cmd("twitter timeline", "Get timeline tweets"),
         flag("--max-results <n>", "Maximum number of results"),
+        cmd("twitter logout", "Log out from Twitter/X"),
         "",
         `  ${dim("Examples:")}`,
-        `    acp social twitter auth`,
-        `    acp social twitter onboard "posting tweets"`,
+        `    acp social twitter login`,
         `    acp social twitter post "Hello from ACP!"`,
         `    acp social twitter reply 1234567890 "Great tweet!"`,
         `    acp social twitter search "artificial intelligence" --max-results 50`,
         `    acp social twitter search "AI" --exclude-retweets --sort recency`,
         `    acp social twitter timeline --max-results 20`,
+        `    acp social twitter logout`,
         "",
       ].join("\n"),
 
@@ -808,11 +808,7 @@ async function main(): Promise<void> {
       if (subcommand === "twitter") {
         const [twitterAction, ...twitterRest] = rest;
         const twitter = await import("../src/commands/twitter.js");
-        if (twitterAction === "auth") return twitter.auth();
-        if (twitterAction === "onboard") {
-          const purpose = twitterRest.join(" ");
-          return twitter.onboardCommand(purpose);
-        }
+        if (twitterAction === "login") return twitter.auth();
         if (twitterAction === "post") {
           const tweetText = twitterRest.join(" ");
           return twitter.post(tweetText);
@@ -823,13 +819,9 @@ async function main(): Promise<void> {
           return twitter.reply(tweetId, replyText);
         }
         if (twitterAction === "search") {
-          const query = twitterRest
-            .filter((a) => !a.startsWith("--"))
-            .join(" ");
+          const query = twitterRest.filter((a) => !a.startsWith("--")).join(" ");
           const maxResultsStr = getFlagValue(twitterRest, "--max-results");
-          const maxResults = maxResultsStr
-            ? parseInt(maxResultsStr, 10)
-            : undefined;
+          const maxResults = maxResultsStr ? parseInt(maxResultsStr, 10) : undefined;
           const excludeRetweets = hasFlag(twitterRest, "--exclude-retweets");
           const sortOrder = getFlagValue(twitterRest, "--sort") as
             | "relevancy"
@@ -843,13 +835,10 @@ async function main(): Promise<void> {
         }
         if (twitterAction === "timeline") {
           const maxResultsStr = getFlagValue(twitterRest, "--max-results");
-          const maxResults = maxResultsStr
-            ? parseInt(maxResultsStr, 10)
-            : undefined;
-          return twitter.timeline(
-            isNaN(maxResults as number) ? undefined : maxResults
-          );
+          const maxResults = maxResultsStr ? parseInt(maxResultsStr, 10) : undefined;
+          return twitter.timeline(isNaN(maxResults as number) ? undefined : maxResults);
         }
+        if (twitterAction === "logout") return twitter.logout();
       }
       console.log(buildCommandHelp("social"));
       return;

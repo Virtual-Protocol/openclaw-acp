@@ -82,8 +82,7 @@ serve status                           Show seller runtime status
 serve logs                             Show recent seller logs
 serve logs --follow                    Tail seller logs in real time
 
-social twitter auth                    Get Twitter/X authentication link
-social twitter onboard <purpose>       Complete Twitter/X onboarding
+social twitter login                   Get Twitter/X authentication link
 social twitter post <text>             Post a tweet
 social twitter reply <tweet-id> <text> Reply to a tweet by ID
 social twitter search <query>          Search tweets
@@ -92,6 +91,7 @@ social twitter search <query>          Search tweets
   --sort <order>                       Sort: relevancy or recency
 social twitter timeline                Get timeline tweets
   --max-results <n>                    Maximum results
+social twitter logout                  Logout from Twitter/X
 ```
 
 ### Examples
@@ -126,10 +126,10 @@ acp sell resource init my_resource
 acp sell resource create my_resource
 
 # Connect Twitter/X and post
-acp social twitter auth
-acp social twitter onboard "posting and engaging"
+acp social twitter login
 acp social twitter post "Hello from my ACP agent!"
 acp social twitter search "AI agents" --max-results 20
+acp social twitter logout
 ```
 
 ## Agent Wallet
@@ -194,11 +194,10 @@ Connect your agent to social platforms to post, reply, search, and browse on its
 
 ### Twitter/X
 
-1. `acp social twitter auth` — authenticate with Twitter/X (opens browser)
-2. `acp social twitter onboard "<purpose>"` — complete onboarding (first time only)
-3. Use `post`, `reply`, `search`, and `timeline` subcommands
+1. `acp social twitter login` — authenticate with Twitter/X (opens browser)
+2. Use `post`, `reply`, `search`, and `timeline` subcommands
 
-**Note:** Authenticating grants the agent permission to perform actions (posting, replying, browsing) on behalf of the authenticated Twitter/X account. You can revoke access at any time from your Twitter/X app settings.
+**Note:** Authenticating grants the agent permission to perform actions (posting, replying, browsing) on behalf of the authenticated Twitter/X account. You can revoke access at any time by using command `acp social twitter logout`.
 
 ## Configuration
 

@@ -1,10 +1,10 @@
 // =============================================================================
-// acp social twitter auth    — Get Twitter/X authentication link
-// acp social twitter onboard — Complete Twitter/X onboarding
+// acp social twitter login    — Get Twitter/X authentication link
 // acp social twitter post     — Post a tweet
 // acp social twitter reply    — Reply to a tweet
 // acp social twitter search   — Search tweets
 // acp social twitter timeline — Get timeline tweets
+// acp social twitter logout   — Log out from Twitter/X
 // =============================================================================
 
 import {
@@ -23,15 +23,9 @@ import * as output from "../lib/output.js";
 export async function auth(): Promise<void> {
   try {
     output.log("");
-    output.warn(
-      "By authenticating with Twitter/X, you are granting this agent permission"
-    );
-    output.warn(
-      "to perform actions on your behalf, including posting tweets, replying,"
-    );
-    output.warn(
-      "and browsing your timeline on the authenticated Twitter/X account."
-    );
+    output.warn("By authenticating with Twitter/X, you are granting this agent permission");
+    output.warn("to perform actions on your behalf, including posting tweets, replying,");
+    output.warn("and browsing your timeline on the authenticated Twitter/X account.");
     output.log("");
 
     output.log("  Getting Twitter/X authentication link...\n");
@@ -44,61 +38,20 @@ export async function auth(): Promise<void> {
     output.success("Twitter/X authentication link opened in your browser.");
 
     output.log("");
-    output.warn(
-      "Reminder: completing this authentication will allow the agent to post,"
-    );
-    output.warn(
-      "reply, and browse Twitter/X on behalf of the authenticated account."
-    );
-    output.warn(
-      "You can revoke access at any time from your Twitter/X app settings."
-    );
+    output.warn("Reminder: completing this authentication will allow the agent to post,");
+    output.warn("reply, and browse Twitter/X on behalf of the authenticated account.");
+    output.warn("You can revoke access at any time by using command `acp social twitter logout`.");
     output.log("");
   } catch (e) {
     output.fatal(
-      `Failed to get Twitter/X auth link: ${
-        e instanceof Error ? e.message : String(e)
-      }`
-    );
-  }
-}
-
-export async function onboardCommand(purpose: string): Promise<void> {
-  if (!purpose?.trim()) {
-    output.fatal(
-      "Usage: acp social twitter onboard <purpose>\n  Purpose cannot be empty."
-    );
-  }
-
-  try {
-    output.log("  Completing Twitter/X onboarding...\n");
-
-    const result = await onboard(purpose);
-
-    output.output(result, (data) => {
-      output.heading("Twitter/X Onboarding");
-      output.log(`  Purpose: "${purpose}"`);
-      if (data?.message) {
-        output.field("Message", data.message);
-      }
-      output.log("");
-    });
-
-    output.success("Twitter/X onboarding completed successfully!");
-  } catch (e) {
-    output.fatal(
-      `Failed to complete onboarding: ${
-        e instanceof Error ? e.message : String(e)
-      }`
+      `Failed to get Twitter/X auth link: ${e instanceof Error ? e.message : String(e)}`
     );
   }
 }
 
 export async function post(tweetText: string): Promise<void> {
   if (!tweetText?.trim()) {
-    output.fatal(
-      "Usage: acp social twitter post <tweet-text>\n  Tweet text cannot be empty."
-    );
+    output.fatal("Usage: acp social twitter post <tweet-text>\n  Tweet text cannot be empty.");
   }
 
   try {
@@ -118,13 +71,9 @@ export async function post(tweetText: string): Promise<void> {
       output.log("");
     });
 
-    output.success(
-      `Tweet posted successfully! https://x.com/acp/status/${result.data.tweetId}`
-    );
+    output.success(`Tweet posted successfully! https://x.com/acp/status/${result.data.tweetId}`);
   } catch (e) {
-    output.fatal(
-      `Failed to post tweet: ${e instanceof Error ? e.message : String(e)}`
-    );
+    output.fatal(`Failed to post tweet: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -158,16 +107,12 @@ export async function reply(tweetId: string, replyText: string): Promise<void> {
 
     const replyId = result.data?.tweetId;
     if (replyId) {
-      output.success(
-        `Reply posted successfully! https://x.com/acp/status/${replyId}`
-      );
+      output.success(`Reply posted successfully! https://x.com/acp/status/${replyId}`);
     } else {
       output.success("Reply posted successfully!");
     }
   } catch (e) {
-    output.fatal(
-      `Failed to reply to tweet: ${e instanceof Error ? e.message : String(e)}`
-    );
+    output.fatal(`Failed to reply to tweet: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -180,9 +125,7 @@ export async function search(
   }
 ): Promise<void> {
   if (!query?.trim()) {
-    output.fatal(
-      "Usage: acp social twitter search <query> [options]\n  Query cannot be empty."
-    );
+    output.fatal("Usage: acp social twitter search <query> [options]\n  Query cannot be empty.");
   }
 
   try {
@@ -228,9 +171,7 @@ export async function search(
       }
     });
   } catch (e) {
-    output.fatal(
-      `Failed to search tweets: ${e instanceof Error ? e.message : String(e)}`
-    );
+    output.fatal(`Failed to search tweets: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -264,8 +205,18 @@ export async function timeline(maxResults?: number): Promise<void> {
       }
     });
   } catch (e) {
-    output.fatal(
-      `Failed to fetch timeline: ${e instanceof Error ? e.message : String(e)}`
-    );
+    output.fatal(`Failed to fetch timeline: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+export async function logout(): Promise<void> {
+  try {
+    output.log("  Logging out from Twitter/X...\n");
+
+    await logout();
+
+    output.success("Logged out from Twitter/X successfully!");
+  } catch (e) {
+    output.fatal(`Failed to logout from Twitter/X: ${e instanceof Error ? e.message : String(e)}`);
   }
 }

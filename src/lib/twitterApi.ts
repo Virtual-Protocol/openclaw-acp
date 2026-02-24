@@ -9,10 +9,7 @@ export interface TwitterAuthLinkResponse {
 }
 
 export async function getAuthLink(): Promise<string> {
-  const { data } = await client.post<{ data: TwitterAuthLinkResponse }>(
-    "/x/auth/initiate",
-    {}
-  );
+  const { data } = await client.post<{ data: TwitterAuthLinkResponse }>("/x/auth/initiate", {});
 
   return data.data.authUrl;
 }
@@ -26,22 +23,15 @@ export interface TwitterPostResponse {
   tweetId: string;
 }
 
-export async function onboard(
-  purpose: string
-): Promise<TwitterOnboardResponse> {
-  const { data } = await client.post<{ data: TwitterOnboardResponse }>(
-    "/x/auth/onboard",
-    {
-      purpose,
-    }
-  );
+export async function onboard(purpose: string): Promise<TwitterOnboardResponse> {
+  const { data } = await client.post<{ data: TwitterOnboardResponse }>("/x/auth/onboard", {
+    purpose,
+  });
 
   return data.data;
 }
 
-export async function postTweet(
-  tweetContent: string
-): Promise<{ data: TwitterPostResponse }> {
+export async function postTweet(tweetContent: string): Promise<{ data: TwitterPostResponse }> {
   const { data } = await client.post("/x/post", {
     text: tweetContent,
   });
@@ -168,5 +158,10 @@ export async function getTimeline(maxResults?: number) {
     },
   });
 
+  return data;
+}
+
+export async function logout(): Promise<void> {
+  const { data } = await client.post("/x/auth/logout", {});
   return data;
 }
