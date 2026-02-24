@@ -100,18 +100,6 @@ function buildHelp(): string {
     cmd("profile update description <value>", "Update agent description"),
     cmd("profile update profilePic <url>", "Update agent profile picture"),
     "",
-    section("Twitter/X"),
-    cmd("twitter auth", "Get Twitter/X authentication link"),
-    cmd("twitter onboard <purpose>", "Complete Twitter/X onboarding"),
-    cmd("twitter post <text>", "Post a tweet"),
-    cmd("twitter reply <tweet-id> <text>", "Reply to a tweet by ID"),
-    cmd("twitter search <query>", "Search tweets"),
-    flag("--max-results <n>", "Maximum number of results (10-100)"),
-    flag("--exclude-retweets", "Exclude retweets"),
-    flag("--sort <order>", "Sort order: relevancy or recency"),
-    cmd("twitter timeline", "Get timeline tweets"),
-    flag("--max-results <n>", "Maximum number of results"),
-    "",
     section("Marketplace"),
     cmd("browse <query>", "Search agents on the marketplace"),
     "",
@@ -141,6 +129,18 @@ function buildHelp(): string {
     cmd("serve status", "Show seller runtime status"),
     cmd("serve logs", "Show recent seller logs"),
     flag("--follow, -f", "Tail logs in real time"),
+    "",
+    section("Social"),
+    cmd("social twitter auth", "Get Twitter/X authentication link"),
+    cmd("social twitter onboard <purpose>", "Complete Twitter/X onboarding"),
+    cmd("social twitter post <text>", "Post a tweet"),
+    cmd("social twitter reply <tweet-id> <text>", "Reply to a tweet by ID"),
+    cmd("social twitter search <query>", "Search tweets"),
+    flag("--max-results <n>", "Maximum number of results (10-100)"),
+    flag("--exclude-retweets", "Exclude retweets"),
+    flag("--sort <order>", "Sort order: relevancy or recency"),
+    cmd("social twitter timeline", "Get timeline tweets"),
+    flag("--max-results <n>", "Maximum number of results"),
     "",
     section("Flags"),
     flag("--json", "Output raw JSON (for agents/scripts)"),
@@ -288,29 +288,30 @@ function buildCommandHelp(command: string): string | undefined {
       "",
     ].join("\n"),
 
-    twitter: () => [
+    social: () => [
       "",
-      `  ${bold("acp twitter")} ${dim("— Twitter/X integration")}`,
+      `  ${bold("acp social")} ${dim("— Social media integrations")}`,
       "",
-      cmd("auth", "Get Twitter/X authentication link (opens in browser)"),
-      cmd("onboard <purpose>", "Complete Twitter/X onboarding after authentication"),
-      cmd("post <text>", "Post a tweet"),
-      cmd("reply <tweet-id> <text>", "Reply to a tweet by ID"),
-      cmd("search <query>", "Search tweets"),
+      `  ${cyan("Twitter/X")}`,
+      cmd("twitter auth", "Get Twitter/X authentication link (opens in browser)"),
+      cmd("twitter onboard <purpose>", "Complete Twitter/X onboarding after authentication"),
+      cmd("twitter post <text>", "Post a tweet"),
+      cmd("twitter reply <tweet-id> <text>", "Reply to a tweet by ID"),
+      cmd("twitter search <query>", "Search tweets"),
       flag("--max-results <n>", "Maximum number of results (10-100)"),
       flag("--exclude-retweets", "Exclude retweets from results"),
       flag("--sort <order>", "Sort order: relevancy or recency"),
-      cmd("timeline", "Get timeline tweets"),
+      cmd("twitter timeline", "Get timeline tweets"),
       flag("--max-results <n>", "Maximum number of results"),
       "",
       `  ${dim("Examples:")}`,
-      `    acp twitter auth`,
-      `    acp twitter onboard "posting tweets"`,
-      `    acp twitter post "Hello from ACP!"`,
-      `    acp twitter reply 1234567890 "Great tweet!"`,
-      `    acp twitter search "artificial intelligence" --max-results 50`,
-      `    acp twitter search "AI" --exclude-retweets --sort recency`,
-      `    acp twitter timeline --max-results 20`,
+      `    acp social twitter auth`,
+      `    acp social twitter onboard "posting tweets"`,
+      `    acp social twitter post "Hello from ACP!"`,
+      `    acp social twitter reply 1234567890 "Great tweet!"`,
+      `    acp social twitter search "artificial intelligence" --max-results 50`,
+      `    acp social twitter search "AI" --exclude-retweets --sort recency`,
+      `    acp social twitter timeline --max-results 20`,
       "",
     ].join("\n"),
   };
@@ -523,49 +524,55 @@ async function main(): Promise<void> {
       return;
     }
 
-    case "twitter": {
-      const twitter = await import("../src/commands/twitter.js");
-      if (subcommand === "auth") return twitter.auth();
-      if (subcommand === "onboard") {
-        const purpose = rest.join(" ");
-        return twitter.onboardCommand(purpose);
+    case "social": {
+      // acp social twitter <action> [args]
+      if (subcommand === "twitter") {
+        const [twitterAction, ...twitterRest] = rest;
+        const twitter = await import("../src/commands/twitter.js");
+        if (twitterAction === "auth") return twitter.auth();
+        if (twitterAction === "onboard") {
+          const purpose = twitterRest.join(" ");
+          return twitter.onboardCommand(purpose);
+        }
+        if (twitterAction === "post") {
+          const tweetText = twitterRest.join(" ");
+          return twitter.post(tweetText);
+        }
+        if (twitterAction === "reply") {
+          const tweetId = twitterRest[0];
+          const replyText = twitterRest.slice(1).join(" ");
+          return twitter.reply(tweetId, replyText);
+        }
+        if (twitterAction === "search") {
+          const query = twitterRest
+            .filter((a) => !a.startsWith("--"))
+            .join(" ");
+          const maxResultsStr = getFlagValue(twitterRest, "--max-results");
+          const maxResults = maxResultsStr
+            ? parseInt(maxResultsStr, 10)
+            : undefined;
+          const excludeRetweets = hasFlag(twitterRest, "--exclude-retweets");
+          const sortOrder = getFlagValue(twitterRest, "--sort") as
+            | "relevancy"
+            | "recency"
+            | undefined;
+          return twitter.search(query, {
+            maxResults: isNaN(maxResults as number) ? undefined : maxResults,
+            excludeRetweets: excludeRetweets || undefined,
+            sortOrder,
+          });
+        }
+        if (twitterAction === "timeline") {
+          const maxResultsStr = getFlagValue(twitterRest, "--max-results");
+          const maxResults = maxResultsStr
+            ? parseInt(maxResultsStr, 10)
+            : undefined;
+          return twitter.timeline(
+            isNaN(maxResults as number) ? undefined : maxResults
+          );
+        }
       }
-      if (subcommand === "post") {
-        const tweetText = rest.join(" ");
-        return twitter.post(tweetText);
-      }
-      if (subcommand === "reply") {
-        const tweetId = rest[0];
-        const replyText = rest.slice(1).join(" ");
-        return twitter.reply(tweetId, replyText);
-      }
-      if (subcommand === "search") {
-        const query = rest.filter((a) => !a.startsWith("--")).join(" ");
-        const maxResultsStr = getFlagValue(rest, "--max-results");
-        const maxResults = maxResultsStr
-          ? parseInt(maxResultsStr, 10)
-          : undefined;
-        const excludeRetweets = hasFlag(rest, "--exclude-retweets");
-        const sortOrder = getFlagValue(rest, "--sort") as
-          | "relevancy"
-          | "recency"
-          | undefined;
-        return twitter.search(query, {
-          maxResults: isNaN(maxResults as number) ? undefined : maxResults,
-          excludeRetweets: excludeRetweets || undefined,
-          sortOrder,
-        });
-      }
-      if (subcommand === "timeline") {
-        const maxResultsStr = getFlagValue(rest, "--max-results");
-        const maxResults = maxResultsStr
-          ? parseInt(maxResultsStr, 10)
-          : undefined;
-        return twitter.timeline(
-          isNaN(maxResults as number) ? undefined : maxResults
-        );
-      }
-      console.log(buildCommandHelp("twitter"));
+      console.log(buildCommandHelp("social"));
       return;
     }
 

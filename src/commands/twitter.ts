@@ -1,10 +1,10 @@
 // =============================================================================
-// acp twitter auth    — Get Twitter/X authentication link
-// acp twitter onboard — Complete Twitter/X onboarding
-// acp twitter post     — Post a tweet
-// acp twitter reply    — Reply to a tweet
-// acp twitter search   — Search tweets
-// acp twitter timeline — Get timeline tweets
+// acp social twitter auth    — Get Twitter/X authentication link
+// acp social twitter onboard — Complete Twitter/X onboarding
+// acp social twitter post     — Post a tweet
+// acp social twitter reply    — Reply to a tweet
+// acp social twitter search   — Search tweets
+// acp social twitter timeline — Get timeline tweets
 // =============================================================================
 
 import {
@@ -22,6 +22,18 @@ import * as output from "../lib/output.js";
 
 export async function auth(): Promise<void> {
   try {
+    output.log("");
+    output.warn(
+      "By authenticating with Twitter/X, you are granting this agent permission"
+    );
+    output.warn(
+      "to perform actions on your behalf, including posting tweets, replying,"
+    );
+    output.warn(
+      "and browsing your timeline on the authenticated Twitter/X account."
+    );
+    output.log("");
+
     output.log("  Getting Twitter/X authentication link...\n");
 
     const authLink = await getAuthLink();
@@ -30,6 +42,18 @@ export async function auth(): Promise<void> {
     openUrl(authLink);
     output.log(`  Auth link: ${authLink}\n`);
     output.success("Twitter/X authentication link opened in your browser.");
+
+    output.log("");
+    output.warn(
+      "Reminder: completing this authentication will allow the agent to post,"
+    );
+    output.warn(
+      "reply, and browse Twitter/X on behalf of the authenticated account."
+    );
+    output.warn(
+      "You can revoke access at any time from your Twitter/X app settings."
+    );
+    output.log("");
   } catch (e) {
     output.fatal(
       `Failed to get Twitter/X auth link: ${
@@ -42,7 +66,7 @@ export async function auth(): Promise<void> {
 export async function onboardCommand(purpose: string): Promise<void> {
   if (!purpose?.trim()) {
     output.fatal(
-      "Usage: acp twitter onboard <purpose>\n  Purpose cannot be empty."
+      "Usage: acp social twitter onboard <purpose>\n  Purpose cannot be empty."
     );
   }
 
@@ -73,7 +97,7 @@ export async function onboardCommand(purpose: string): Promise<void> {
 export async function post(tweetText: string): Promise<void> {
   if (!tweetText?.trim()) {
     output.fatal(
-      "Usage: acp twitter post <tweet-text>\n  Tweet text cannot be empty."
+      "Usage: acp social twitter post <tweet-text>\n  Tweet text cannot be empty."
     );
   }
 
@@ -107,13 +131,13 @@ export async function post(tweetText: string): Promise<void> {
 export async function reply(tweetId: string, replyText: string): Promise<void> {
   if (!tweetId?.trim()) {
     output.fatal(
-      "Usage: acp twitter reply <tweet-id> <reply-text>\n  Tweet ID cannot be empty."
+      "Usage: acp social twitter reply <tweet-id> <reply-text>\n  Tweet ID cannot be empty."
     );
   }
 
   if (!replyText?.trim()) {
     output.fatal(
-      "Usage: acp twitter reply <tweet-id> <reply-text>\n  Reply text cannot be empty."
+      "Usage: acp social twitter reply <tweet-id> <reply-text>\n  Reply text cannot be empty."
     );
   }
 
@@ -157,7 +181,7 @@ export async function search(
 ): Promise<void> {
   if (!query?.trim()) {
     output.fatal(
-      "Usage: acp twitter search <query> [options]\n  Query cannot be empty."
+      "Usage: acp social twitter search <query> [options]\n  Query cannot be empty."
     );
   }
 
