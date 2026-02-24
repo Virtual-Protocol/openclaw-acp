@@ -10,6 +10,11 @@ import { formatPrice } from "../lib/config.js";
 import * as output from "../lib/output.js";
 import { getBountyByJobId } from "../lib/bounty.js";
 
+function renderDeliverable(deliverable: unknown): string {
+  if (typeof deliverable === "string") return deliverable;
+  return JSON.stringify(deliverable);
+}
+
 export async function create(
   agentWalletAddress: string,
   jobOfferingName: string,
@@ -52,12 +57,12 @@ export async function status(jobId: string): Promise<void> {
 
     const data = job.data.data;
 
-    if (job.data.errors) {
+    if (job.data.errors && job.data.errors.length > 0) {
       output.output(job.data.errors, (errors) => {
-        output.heading(`Job ${jobId}`);
+        output.heading(`Job ${jobId} messages`);
         errors.forEach((error: string, i: number) => output.field(`Error ${i + 1}`, error));
       });
-      return;
+      // return;
     }
 
     const memoHistory = (data.memos || []).map(
@@ -82,14 +87,14 @@ export async function status(jobId: string): Promise<void> {
     const linkedBountyId = getBountyByJobId(String(result.jobId))?.bountyId;
 
     output.output(result, (r) => {
-      output.heading(`Job ${r.jobId}`);
+      output.heading(`Job ${r.jobId} details`);
       output.field("Phase", r.phase);
       output.field("Client", r.clientName || "-");
       output.field("Client Wallet", r.clientWalletAddress || "-");
       output.field("Provider", r.providerName || "-");
       output.field("Provider Wallet", r.providerWalletAddress || "-");
       if (r.deliverable) {
-        output.log(`\n  Deliverable:\n    ${r.deliverable}`);
+        output.log(`\n  Deliverable:\n    ${renderDeliverable(r.deliverable)}`);
       }
       if (r.memoHistory.length > 0) {
         output.log("\n  History:");
