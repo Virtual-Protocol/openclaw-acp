@@ -108,6 +108,15 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
       return;
     }
 
+    const knownOfferings = listOfferings(agentDirName);
+    if (!knownOfferings.includes(offeringName)) {
+      await acceptOrRejectJob(jobId, {
+        accept: false,
+        reason: "Unknown offering",
+      });
+      return;
+    }
+
     try {
       const { config, handlers } = await loadOffering(offeringName, agentDirName);
 
@@ -172,7 +181,7 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
     const offeringName = resolveOfferingName(data);
     const requirements = resolveServiceRequirements(data);
 
-    if (offeringName) {
+    if (offeringName && listOfferings(agentDirName).includes(offeringName)) {
       try {
         const { handlers } = await loadOffering(offeringName, agentDirName);
         console.log(
