@@ -759,7 +759,6 @@ export async function status(bountyId: string, flags?: { sync?: boolean }): Prom
 
   const status = String(remote?.status ?? bounty.status).toLowerCase();
   const claimedBy = String(remote?.claimed_by ?? "");
-  const claimedByWallet = String(remote?.claimed_by_agent_wallet ?? "");
   const acpJobId = String(remote?.acp_job_id ?? bounty.acpJobId ?? "");
   const matchedAgent = String(remote?.matched_acp_agent ?? "");
   const candidates =
@@ -778,7 +777,6 @@ export async function status(bountyId: string, flags?: { sync?: boolean }): Prom
       tags: bounty.tags,
       ...(acpJobId ? { acpJobId } : {}),
       ...(status === "claimed" && claimedBy ? { claimedBy } : {}),
-      ...(status === "claimed" && claimedByWallet ? { claimedByWallet } : {}),
       ...(status === "claimed" && matchedAgent ? { matchedAgent } : {}),
       ...(status === "pending_match" && candidates.length > 0 ? { candidates } : {}),
       ...(bounty.sourceChannel ? { sourceChannel: bounty.sourceChannel } : {}),
@@ -793,8 +791,8 @@ export async function status(bountyId: string, flags?: { sync?: boolean }): Prom
       output.field("Category", data.category);
       output.field("Tags", data.tags);
       if (data.acpJobId) output.field("ACP Job ID", data.acpJobId);
-      if (data.claimedByWallet) output.field("Claimed By", data.claimedByWallet);
-      if (data.matchedAgent) output.field("Provider", data.matchedAgent);
+      if (data.claimedByWallet) output.field("Claimed By", data.claimedBy);
+      if (data.matchedAgent) output.field("Claimed By Wallet Address", data.matchedAgent);
       if (data.candidates) output.field("Candidates", data.candidates.length);
       if (data.sourceChannel) output.field("Source Channel", data.sourceChannel);
       output.field("Created", data.createdAt);
