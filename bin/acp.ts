@@ -123,7 +123,7 @@ function buildHelp(): string {
     flag("--tags <csv>", "Comma-separated tags"),
     cmd("bounty poll", "Poll all active bounties (cron-safe)"),
     cmd("bounty list", "List active local bounties"),
-    cmd("bounty status <bounty-id>", "Get bounty match status"),
+    cmd("bounty status <bounty-id>", "Get bounty details from server"),
     cmd("bounty select <bounty-id>", "Select candidate and create ACP job"),
     cmd("bounty update <bounty-id>", "Update an open bounty"),
     "",
@@ -268,38 +268,40 @@ function buildCommandHelp(command: string): string | undefined {
         "",
       ].join("\n"),
 
-    bounty: () => [
-      "",
-      `  ${bold("acp bounty")} ${dim("— Manage local bounty lifecycle")}`,
-      "",
-      cmd("create [query]", "Create a bounty (interactive or via flags)"),
-      `    ${dim('Interactive:  acp bounty create "video production"')}`,
-      `    ${dim('With flags:   acp bounty create --title "Music video" --description "Cute girl dancing animation for my song" --budget 50 --tags "video,music" --category digital --source-channel telegram --json')}`,
-      "",
-      flag("--title <text>", "Bounty title (triggers non-interactive mode, also used for update)"),
-      flag("--description <text>", "Description (defaults to title, also used for update)"),
-      flag("--budget <number>", "Budget in USD (also used for update)"),
-      flag("--category <digital|physical>", "Category (default: digital)"),
-      flag("--tags <csv>", "Comma-separated tags (also used for update)"),
-      flag("--source-channel <name>", "Channel where bounty originated (e.g. telegram, webchat)"),
-      flag("--json", "Output result in JSON format (for create)"),
-      "",
-      cmd("poll", "Poll all active bounties and update local state"),
-      cmd("list", "List active local bounties"),
-      cmd("status <bounty-id>", "Fetch remote match status for a bounty"),
-      cmd(
-        "select <bounty-id>",
-        "Pick pending_match candidate, create ACP job, confirm match"
-      ),
-      cmd("update <bounty-id>", "Update an open bounty"),
-      flag("--title <text>", "New title (for update)"),
-      flag("--description <text>", "New description (for update)"),
-      flag("--budget <number>", "New budget in USD (for update)"),
-      flag("--tags <csv>", "New tags (for update)"),
-      "",
-      cmd("cleanup <bounty-id>", "Remove local bounty state"),
-      "",
-    ].join("\n"),
+    bounty: () =>
+      [
+        "",
+        `  ${bold("acp bounty")} ${dim("— Manage local bounty lifecycle")}`,
+        "",
+        cmd("create [query]", "Create a bounty (interactive or via flags)"),
+        `    ${dim('Interactive:  acp bounty create "video production"')}`,
+        `    ${dim('With flags:   acp bounty create --title "Music video" --description "Cute girl dancing animation for my song" --budget 50 --tags "video,music" --category digital --source-channel telegram --json')}`,
+        "",
+        flag(
+          "--title <text>",
+          "Bounty title (triggers non-interactive mode, also used for update)"
+        ),
+        flag("--description <text>", "Description (defaults to title, also used for update)"),
+        flag("--budget <number>", "Budget in USD (also used for update)"),
+        flag("--category <digital|physical>", "Category (default: digital)"),
+        flag("--tags <csv>", "Comma-separated tags (also used for update)"),
+        flag("--source-channel <name>", "Channel where bounty originated (e.g. telegram, webchat)"),
+        flag("--json", "Output result in JSON format (for create)"),
+        "",
+        cmd("poll", "Poll all active bounties and update local state"),
+        cmd("list", "List active local bounties"),
+        cmd("status <bounty-id>", "Get bounty details from server"),
+        flag("--sync", "Sync job status with backend before fetching details"),
+        cmd("select <bounty-id>", "Pick pending_match candidate, create ACP job, confirm match"),
+        cmd("update <bounty-id>", "Update an open bounty"),
+        flag("--title <text>", "New title (for update)"),
+        flag("--description <text>", "New description (for update)"),
+        flag("--budget <number>", "New budget in USD (for update)"),
+        flag("--tags <csv>", "New tags (for update)"),
+        "",
+        cmd("cleanup <bounty-id>", "Remove local bounty state"),
+        "",
+      ].join("\n"),
 
     token: () =>
       [
@@ -636,7 +638,11 @@ async function main(): Promise<void> {
       }
       if (subcommand === "poll") return bounty.poll();
       if (subcommand === "list") return bounty.list();
-      if (subcommand === "status") return bounty.status(rest[0]);
+      if (subcommand === "status") {
+        const syncFlag = hasFlag(rest, "--sync");
+        const statusBountyId = rest.filter((a) => a !== "--sync")[0];
+        return bounty.status(statusBountyId, { sync: syncFlag });
+      }
       if (subcommand === "select") return bounty.select(rest[0]);
       if (subcommand === "cleanup") return bounty.cleanup(rest[0]);
       console.log(buildCommandHelp("bounty"));
