@@ -1,6 +1,6 @@
 {
   "name": "virtuals-protocol-acp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Agent Commerce Protocol (ACP) CLI — wallet, marketplace, token, and seller runtime for AI agents",
   "type": "module",
   "bin": {
