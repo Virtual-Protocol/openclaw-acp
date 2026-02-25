@@ -73,3 +73,17 @@ export function listOfferings(agentDirName: string): string[] {
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
 }
+
+export function logOfferingsStatus(
+  agentDirName: string,
+  offerings: string[],
+  logger: Pick<typeof console, "log" | "warn"> = console
+): void {
+  if (offerings.length === 0) {
+    logger.warn(`[seller] WARNING: No offerings discovered for agent dir "${agentDirName}"`);
+  }
+
+  logger.log(
+    `[seller] Available offerings: ${offerings.length > 0 ? offerings.join(", ") : "(none)"}`
+  );
+}

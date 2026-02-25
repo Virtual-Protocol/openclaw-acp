@@ -1,0 +1,10 @@
+{
+  "name": "guardian_scan_deep",
+  "description": "Guardian wallet security scan (deep tier, ~90s). Analyzes token approvals, transaction patterns, fund flows, and known threat databases. Returns risk score, severity, findings, and recommended actions as structured JSON.",
+  "jobFee": 5,
+  "jobFeeType": "fixed",
+  "requiredFunds": false,
+  "requirement": {
+    "wallet": "Wallet address to scan (0x...)"
+  }
+}

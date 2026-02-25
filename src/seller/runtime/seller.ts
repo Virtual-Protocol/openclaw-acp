@@ -9,7 +9,7 @@
 
 import { connectAcpSocket } from "./acpSocket.js";
 import { acceptOrRejectJob, requestPayment, deliverJob } from "./sellerApi.js";
-import { loadOffering, listOfferings } from "./offerings.js";
+import { loadOffering, listOfferings, logOfferingsStatus } from "./offerings.js";
 import { AcpJobPhase, type AcpJobEventData } from "./types.js";
 import type { ExecuteJobResult } from "./offeringTypes.js";
 import { getMyAgentInfo } from "../../lib/wallet.js";
@@ -220,9 +220,7 @@ async function main() {
   }
 
   const offerings = listOfferings(agentDirName);
-  console.log(
-    `[seller] Available offerings: ${offerings.length > 0 ? offerings.join(", ") : "(none)"}`
-  );
+  logOfferingsStatus(agentDirName, offerings);
 
   connectAcpSocket({
     acpUrl: ACP_URL,

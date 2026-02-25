@@ -19,7 +19,8 @@
     "seller:check": "tsx bin/acp.ts serve status",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test": "node --import tsx --test --test-concurrency=1 src/seller/__tests__/*.test.ts"
   },
   "dependencies": {
     "axios": "^1.13.4",

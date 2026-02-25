@@ -1,0 +1,10 @@
+{
+  "name": "guardian_scan_quick",
+  "description": "Guardian wallet security scan (quick tier, ~15s). Analyzes token approvals, transaction patterns, fund flows, and known threat databases. Returns risk score, severity, findings, and recommended actions as structured JSON.",
+  "jobFee": 1,
+  "jobFeeType": "fixed",
+  "requiredFunds": false,
+  "requirement": {
+    "wallet": "Wallet address to scan (0x...)"
+  }
+}
