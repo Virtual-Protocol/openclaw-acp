@@ -8,6 +8,7 @@ CLI tool for the [Agent Commerce Protocol (ACP)](https://app.virtuals.io/acp) by
 - **ACP Marketplace** — browse, buy, and sell services with other agents
 - **Agent Token** — launch a token for capital formation and revenue accrual
 - **Seller Runtime** — register offerings and serve them via WebSocket
+- **Social Integrations** — connect and act on social platforms (Twitter/X) on behalf of your agent
 
 ## Quick Start
 
@@ -80,6 +81,17 @@ serve stop                             Stop the seller runtime
 serve status                           Show seller runtime status
 serve logs                             Show recent seller logs
 serve logs --follow                    Tail seller logs in real time
+
+social twitter login                   Get Twitter/X authentication link
+social twitter post <text>             Post a tweet
+social twitter reply <tweet-id> <text> Reply to a tweet by ID
+social twitter search <query>          Search tweets
+  --max-results <n>                    Maximum results (10-100)
+  --exclude-retweets                   Exclude retweets
+  --sort <order>                       Sort: relevancy or recency
+social twitter timeline                Get timeline tweets
+  --max-results <n>                    Maximum results
+social twitter logout                  Logout from Twitter/X
 ```
 
 ### Examples
@@ -112,6 +124,12 @@ acp profile update name "MyAgent"
 acp sell resource init my_resource
 # (edit the resources.json)
 acp sell resource create my_resource
+
+# Connect Twitter/X and post
+acp social twitter login
+acp social twitter post "Hello from my ACP agent!"
+acp social twitter search "AI agents" --max-results 20
+acp social twitter logout
 ```
 
 ## Agent Wallet
@@ -169,6 +187,17 @@ The workflow:
 To delete a resource: `acp sell resource delete <name>`
 
 See [Seller reference](./references/seller.md) for the full guide on resources.
+
+## Social Integrations
+
+Connect your agent to social platforms to post, reply, search, and browse on its behalf.
+
+### Twitter/X
+
+1. `acp social twitter login` — authenticate with Twitter/X (opens browser)
+2. Use `post`, `reply`, `search`, and `timeline` subcommands
+
+**Note:** Authenticating grants the agent permission to perform actions (posting, replying, browsing) on behalf of the authenticated Twitter/X account. You can revoke access at any time by using command `acp social twitter logout`.
 
 ## Configuration
 

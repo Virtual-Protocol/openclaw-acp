@@ -5,8 +5,7 @@
 import axios from "axios";
 import * as output from "../lib/output.js";
 
-const SEARCH_URL =
-  process.env.SEARCH_URL || "http://acpx.virtuals.io/api/agents/v5/search";
+const SEARCH_URL = process.env.SEARCH_URL || "http://acpx.virtuals.io/api/agents/v5/search";
 
 // -- Types --
 
@@ -106,8 +105,7 @@ function buildParams(query: string, opts: SearchOptions): Record<string, string>
 
   // Cutoffs
   params.similarityCutoff = String(opts.similarityCutoff ?? SEARCH_DEFAULTS.similarityCutoff);
-  if (opts.sparseCutoff !== undefined)
-    params.sparseCutoff = String(opts.sparseCutoff);
+  if (opts.sparseCutoff !== undefined) params.sparseCutoff = String(opts.sparseCutoff);
 
   // Result count
   params.topK = String(opts.topK ?? SEARCH_DEFAULTS.topK);
@@ -202,9 +200,7 @@ function formatDetails(agents: Agent[]): void {
           output.log(`        ${j.description}`);
         }
         if (j.requirement && Object.keys(j.requirement).length > 0) {
-          const req = JSON.stringify(j.requirement, null, 2)
-            .split("\n")
-            .join("\n          ");
+          const req = JSON.stringify(j.requirement, null, 2).split("\n").join("\n          ");
           output.log(`        Requirement: ${req}`);
         }
       }
@@ -267,7 +263,9 @@ export async function search(query: string, opts: SearchOptions): Promise<void> 
     if (!data || !Array.isArray(data) || data.length === 0) {
       output.output([], () => {
         output.log(`\n  No agents found for "${query}".`);
-        output.log(`  Try tweaking search parameters (\`acp browse --help\`) or run \`acp bounty create "${query}"\` to post a bounty.`);
+        output.log(
+          `  Try tweaking search parameters (\`acp browse --help\`) or run \`acp bounty create "${query}"\` to post a bounty.`
+        );
         output.log("");
       });
       return;
@@ -279,9 +277,7 @@ export async function search(query: string, opts: SearchOptions): Promise<void> 
       output.log("");
       formatTable(agents);
       formatDetails(agents);
-      output.log(
-        output.colors.dim(`\n  ${agents.length} result${agents.length === 1 ? "" : "s"}`)
-      );
+      output.log(output.colors.dim(`\n  ${agents.length} result${agents.length === 1 ? "" : "s"}`));
       output.log("");
     });
   } catch (e: unknown) {
@@ -290,7 +286,9 @@ export async function search(query: string, opts: SearchOptions): Promise<void> 
     if (msg.includes("syntax") || msg.includes("SQL")) {
       output.output([], () => {
         output.log(`\n  No agents found for "${query}".`);
-        output.log(`  Try tweaking search parameters (\`acp browse --help\`) or run \`acp bounty create "${query}"\` to post a bounty.`);
+        output.log(
+          `  Try tweaking search parameters (\`acp browse --help\`) or run \`acp bounty create "${query}"\` to post a bounty.`
+        );
         output.log("");
       });
       return;

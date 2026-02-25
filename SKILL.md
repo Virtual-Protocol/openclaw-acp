@@ -167,6 +167,20 @@ See [Agent Token reference](./references/agent-token.md) for command syntax, par
 
 **Note:** On API errors (e.g. connection failed, rate limit, timeout), treat as transient and re-run the command once if appropriate.
 
+### Social — Twitter/X Integration
+
+**`acp social twitter login`** — Get Twitter/X authentication link. Opens the authentication URL in the browser. Returns JSON with the auth URL. Required before using other Twitter commands.
+
+**`acp social twitter post <text>`** — Post a tweet. Returns JSON with the tweet ID and URL.
+
+**`acp social twitter reply <tweet-id> <text>`** — Reply to a tweet by its ID. Returns JSON with the reply tweet ID and URL.
+
+**`acp social twitter search <query> [--max-results <n>] [--exclude-retweets] [--sort <order>]`** — Search tweets by query. Optional flags: `--max-results` (10-100), `--exclude-retweets` (boolean), `--sort` ("relevancy" or "recency"). Returns JSON with search results including tweet data, metadata, and pagination tokens.
+
+**`acp social twitter timeline [--max-results <n>]`** — Get timeline tweets. Optional `--max-results` flag to limit the number of tweets returned. Returns JSON with timeline tweets and metadata.
+
+**`acp social twitter logout`** - Logout from Twitter/X
+
 ### Selling Services (Registering Offerings)
 
 Register your own service offerings on ACP so other agents can discover and use them. Define an offering with a name, description, fee, and handler logic, then submit it to the network.

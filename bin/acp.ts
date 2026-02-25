@@ -166,6 +166,18 @@ function buildHelp(): string {
     cmd("serve deploy railway env set", "Set env var (KEY=value)"),
     cmd("serve deploy railway env delete", "Delete an env var"),
     "",
+    section("Social"),
+    cmd("social twitter login", "Get Twitter/X authentication link"),
+    cmd("social twitter post <text>", "Post a tweet"),
+    cmd("social twitter reply <tweet-id> <text>", "Reply to a tweet by ID"),
+    cmd("social twitter search <query>", "Search tweets"),
+    flag("--max-results <n>", "Maximum number of results (10-100)"),
+    flag("--exclude-retweets", "Exclude retweets"),
+    flag("--sort <order>", "Sort order: relevancy or recency"),
+    cmd("social twitter timeline", "Get timeline tweets"),
+    flag("--max-results <n>", "Maximum number of results"),
+    cmd("social twitter logout", "Logout from Twitter/X"),
+    "",
     section("Flags"),
     flag("--json", "Output raw JSON (for agents/scripts)"),
     flag("--help, -h", "Show this help"),
@@ -355,6 +367,50 @@ function buildCommandHelp(command: string): string | undefined {
         "",
       ].join("\n"),
 
+    resource: () =>
+      [
+        "",
+        `  ${bold("acp resource")} ${dim("— Query an agent's resources by URL")}`,
+        "",
+        cmd("query <url>", "Query an agent's resource by its URL"),
+        flag("--params '<json>'", "Parameters to pass to the resource (JSON)"),
+        "",
+        `  ${dim("Examples:")}`,
+        `    acp resource query https://api.example.com/market-data`,
+        `    acp resource query https://api.example.com/market-data --params '{"symbol":"BTC"}'`,
+        "",
+        `  ${dim("Note: Always uses GET requests. Params are appended as query string.")}`,
+        "",
+      ].join("\n"),
+
+    social: () =>
+      [
+        "",
+        `  ${bold("acp social")} ${dim("— Social media integrations")}`,
+        "",
+        `  ${cyan("Twitter/X")}`,
+        cmd("twitter login", "Get Twitter/X authentication link (opens in browser)"),
+        cmd("twitter post <text>", "Post a tweet"),
+        cmd("twitter reply <tweet-id> <text>", "Reply to a tweet by ID"),
+        cmd("twitter search <query>", "Search tweets"),
+        flag("--max-results <n>", "Maximum number of results (10-100)"),
+        flag("--exclude-retweets", "Exclude retweets from results"),
+        flag("--sort <order>", "Sort order: relevancy or recency"),
+        cmd("twitter timeline", "Get timeline tweets"),
+        flag("--max-results <n>", "Maximum number of results"),
+        cmd("twitter logout", "Log out from Twitter/X"),
+        "",
+        `  ${dim("Examples:")}`,
+        `    acp social twitter login`,
+        `    acp social twitter post "Hello from ACP!"`,
+        `    acp social twitter reply 1234567890 "Great tweet!"`,
+        `    acp social twitter search "artificial intelligence" --max-results 50`,
+        `    acp social twitter search "AI" --exclude-retweets --sort recency`,
+        `    acp social twitter timeline --max-results 20`,
+        `    acp social twitter logout`,
+        "",
+      ].join("\n"),
+
     serve: () =>
       [
         "",
@@ -404,22 +460,6 @@ function buildCommandHelp(command: string): string | undefined {
         `    acp serve deploy railway env              ${dim("# List env vars")}`,
         `    acp serve deploy railway env set KEY=val  ${dim("# Set an env var")}`,
         `    acp serve deploy railway env delete KEY   ${dim("# Delete an env var")}`,
-        "",
-      ].join("\n"),
-
-    resource: () =>
-      [
-        "",
-        `  ${bold("acp resource")} ${dim("— Query an agent's resources by URL")}`,
-        "",
-        cmd("query <url>", "Query an agent's resource by its URL"),
-        flag("--params '<json>'", "Parameters to pass to the resource (JSON)"),
-        "",
-        `  ${dim("Examples:")}`,
-        `    acp resource query https://api.example.com/market-data`,
-        `    acp resource query https://api.example.com/market-data --params '{"symbol":"BTC"}'`,
-        "",
-        `  ${dim("Note: Always uses GET requests. Params are appended as query string.")}`,
         "",
       ].join("\n"),
   };
@@ -760,6 +800,47 @@ async function main(): Promise<void> {
         return resource.query(url, params);
       }
       console.log(buildCommandHelp("resource"));
+      return;
+    }
+
+    case "social": {
+      // acp social twitter <action> [args]
+      if (subcommand === "twitter") {
+        const [twitterAction, ...twitterRest] = rest;
+        const twitter = await import("../src/commands/twitter.js");
+        if (twitterAction === "login") return twitter.auth();
+        if (twitterAction === "post") {
+          const tweetText = twitterRest.join(" ");
+          return twitter.post(tweetText);
+        }
+        if (twitterAction === "reply") {
+          const tweetId = twitterRest[0];
+          const replyText = twitterRest.slice(1).join(" ");
+          return twitter.reply(tweetId, replyText);
+        }
+        if (twitterAction === "search") {
+          const query = twitterRest.filter((a) => !a.startsWith("--")).join(" ");
+          const maxResultsStr = getFlagValue(twitterRest, "--max-results");
+          const maxResults = maxResultsStr ? parseInt(maxResultsStr, 10) : undefined;
+          const excludeRetweets = hasFlag(twitterRest, "--exclude-retweets");
+          const sortOrder = getFlagValue(twitterRest, "--sort") as
+            | "relevancy"
+            | "recency"
+            | undefined;
+          return twitter.search(query, {
+            maxResults: isNaN(maxResults as number) ? undefined : maxResults,
+            excludeRetweets: excludeRetweets || undefined,
+            sortOrder,
+          });
+        }
+        if (twitterAction === "timeline") {
+          const maxResultsStr = getFlagValue(twitterRest, "--max-results");
+          const maxResults = maxResultsStr ? parseInt(maxResultsStr, 10) : undefined;
+          return twitter.timeline(isNaN(maxResults as number) ? undefined : maxResults);
+        }
+        if (twitterAction === "logout") return twitter.performLogout();
+      }
+      console.log(buildCommandHelp("social"));
       return;
     }
 
