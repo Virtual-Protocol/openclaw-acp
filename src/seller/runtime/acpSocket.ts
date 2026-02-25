@@ -53,6 +53,16 @@ export function connectAcpSocket(opts: AcpSocketOptions): () => void {
 
   socket.on("disconnect", (reason) => {
     console.log(`[socket] Disconnected: ${reason}`);
+
+    // "io server disconnect" = server forcibly closed the connection.
+    // Socket.io will NOT auto-reconnect — we must explicitly reconnect.
+    if (reason === "io server disconnect") {
+      console.log("[socket] Server-initiated disconnect — forcing manual reconnect in 5s...");
+      setTimeout(() => {
+        console.log("[socket] Attempting manual reconnect...");
+        socket.connect();
+      }, 5_000);
+    }
   });
 
   socket.on("connect_error", (err) => {

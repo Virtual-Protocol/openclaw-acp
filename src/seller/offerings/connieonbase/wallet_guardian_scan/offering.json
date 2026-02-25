@@ -1,0 +1,11 @@
+{
+  "name": "wallet_guardian_scan",
+  "description": "AI-powered wallet security scan. Analyzes token approvals, transaction patterns, fund flows, and known threat databases. Returns risk score (0-10), severity rating, detailed findings, and recommended actions. Covers unlimited approval detection, drainer pattern matching, behavioral anomaly analysis, and governance chain tracing. Results delivered as structured JSON.",
+  "jobFee": 1,
+  "jobFeeType": "fixed",
+  "requiredFunds": false,
+  "requirement": {
+    "wallet": "Wallet address to scan (0x...)",
+    "tier": "Scan tier: quick | standard | deep (optional, defaults to standard)"
+  }
+}
