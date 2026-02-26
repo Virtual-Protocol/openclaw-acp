@@ -12,6 +12,7 @@ import { requireActiveAgent } from "../lib/wallet.js";
 import {
   type ActiveBounty,
   type BountyCreateInput,
+  cancelBounty,
   createBounty,
   getActiveBounty,
   getBountyDetails,
@@ -1050,6 +1051,38 @@ export async function update(bountyId: string, flags: BountyUpdateFlags): Promis
       output.log("");
     }
   );
+}
+
+export async function cancel(bountyId: string): Promise<void> {
+  if (!bountyId) output.fatal("Usage: acp bounty cancel <bountyId>");
+
+  const active = getActiveBounty(bountyId);
+  if (!active) output.fatal(`Bounty not found in local state: ${bountyId}`);
+  if (!active.posterSecret) output.fatal("Missing poster secret for this bounty.");
+
+  try {
+    await cancelBounty({ bountyId, posterSecret: active.posterSecret });
+  } catch (e: any) {
+    const msg =
+      e?.response?.data?.detail?.detail ??
+      e?.response?.data?.detail ??
+      (e instanceof Error ? e.message : String(e));
+    output.fatal(`Failed to cancel bounty ${bountyId}: ${msg}`);
+  }
+
+  removeActiveBounty(bountyId);
+  try {
+    removeBountyPollCronIfUnused();
+  } catch {
+    // non-fatal
+  }
+
+  output.output({ bountyId, status: "cancelled" }, (data) => {
+    output.heading("Bounty Cancelled");
+    output.field("Bounty ID", data.bountyId);
+    output.field("Status", data.status);
+    output.log("");
+  });
 }
 
 export async function cleanup(bountyId: string): Promise<void> {

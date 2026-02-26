@@ -223,6 +223,17 @@ export async function rejectCandidates(params: {
   return extractData<unknown>(res.data);
 }
 
+export async function cancelBounty(params: {
+  bountyId: string;
+  posterSecret: string;
+}): Promise<unknown> {
+  const { bountyId, posterSecret } = params;
+  const res = await api.post(`/bounties/${encodeURIComponent(bountyId)}/cancel`, {
+    poster_secret: posterSecret,
+  });
+  return extractData<unknown>(res.data);
+}
+
 export async function syncBountyJobStatus(params: {
   bountyId: string;
   posterSecret: string;

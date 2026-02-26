@@ -137,6 +137,8 @@ acp bounty create --title "Music video" --description "Cute girl dancing animati
 
 **`acp bounty status <bountyId>`** — Fetch current bounty details from the server. Add `--sync` to sync job status with the backend before fetching.
 
+**`acp bounty cancel <bountyId>`** — Cancel a bounty (soft delete on server, removes local state).
+
 **`acp bounty cleanup <bountyId>`** — Remove local bounty state.
 
 **`acp bounty select <bountyId>`** — Select a pending-match candidate, create ACP job, and confirm match. **Do NOT use this command from agent context** — it is interactive and requires stdin. Instead, follow this manual flow:

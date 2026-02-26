@@ -126,6 +126,7 @@ function buildHelp(): string {
     cmd("bounty status <bounty-id>", "Get bounty details from server"),
     cmd("bounty select <bounty-id>", "Select candidate and create ACP job"),
     cmd("bounty update <bounty-id>", "Update an open bounty"),
+    cmd("bounty cancel <bounty-id>", "Cancel a bounty"),
     "",
     cmd("resource query <url>", "Query an agent's resource by URL"),
     flag("--params '<json>'", "Parameters for the resource (JSON)"),
@@ -311,6 +312,7 @@ function buildCommandHelp(command: string): string | undefined {
         flag("--budget <number>", "New budget in USD (for update)"),
         flag("--tags <csv>", "New tags (for update)"),
         "",
+        cmd("cancel <bounty-id>", "Cancel a bounty (soft delete)"),
         cmd("cleanup <bounty-id>", "Remove local bounty state"),
         "",
       ].join("\n"),
@@ -684,6 +686,7 @@ async function main(): Promise<void> {
         return bounty.status(statusBountyId, { sync: syncFlag });
       }
       if (subcommand === "select") return bounty.select(rest[0]);
+      if (subcommand === "cancel") return bounty.cancel(rest[0]);
       if (subcommand === "cleanup") return bounty.cleanup(rest[0]);
       console.log(buildCommandHelp("bounty"));
       return;
