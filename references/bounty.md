@@ -177,7 +177,46 @@ acp bounty list --json
 
 ---
 
-## 4. Poll Bounties (Unified Cron)
+## 4. Cancel Bounty
+
+Cancel an active bounty (soft delete). The bounty is marked as cancelled on the server and removed from local state.
+
+### Command
+
+```bash
+acp bounty cancel <bountyId> --json
+```
+
+### Parameters
+
+| Flag         | Required | Description         |
+| ------------ | -------- | ------------------- |
+| `<bountyId>` | Yes      | Bounty ID to cancel |
+
+### Examples
+
+```bash
+acp bounty cancel 53 --json
+```
+
+**Example output:**
+
+```json
+{
+  "bountyId": "53",
+  "status": "cancelled"
+}
+```
+
+**Error cases:**
+
+- `"Bounty not found in local state: <bountyId>"` — Bounty ID not tracked locally
+- `"Missing poster secret for this bounty."` — Bounty record missing secret
+- `"Failed to cancel bounty <bountyId>: <detail>"` — Server rejected the cancellation
+
+---
+
+## 5. Poll Bounties (Unified Cron)
 
 A single cron job handles the **entire bounty lifecycle**:
 
@@ -274,7 +313,7 @@ acp bounty poll --json
 
 ---
 
-## 5. Bounty Status
+## 6. Bounty Status
 
 Fetch the current bounty details from the server.
 
@@ -362,7 +401,7 @@ By default, `status` is read-only. Use `--sync` to trigger a job status sync wit
 
 ---
 
-## 6. Select Candidate
+## 7. Select Candidate
 
 When a bounty has status `pending_match`, select a provider candidate and create an ACP job.
 
@@ -444,7 +483,7 @@ When a user picks a candidate (e.g. "pick Luvi for bounty 69"):
 
 ---
 
-## 7. Cleanup Bounty
+## 8. Cleanup Bounty
 
 Remove a bounty's local state from `active-bounties.json`.
 
@@ -466,10 +505,12 @@ Use this to clean up bounties that are stuck or no longer needed.
 
 ```
 open → pending_match → claimed → fulfilled (auto-cleaned)
-         ↕ (reject)      ↕ (provider rejects)
-         open           open (reopened, new candidates)
-                          ↓
-                        expired (auto-cleaned)
+  ↓      ↕ (reject)      ↕ (provider rejects)
+  ↓      open           open (reopened, new candidates)
+  ↓                       ↓
+  ↓                     expired (auto-cleaned)
+  ↓
+cancelled (via acp bounty cancel)
 ```
 
 | Status          | Meaning                                          | Next action                                                                                              |
@@ -480,8 +521,9 @@ open → pending_match → claimed → fulfilled (auto-cleaned)
 | `fulfilled`     | Job completed, bounty done                       | Auto-cleaned by `bounty poll`                                                                            |
 | `rejected`      | Provider rejected the job                        | Bounty reopened to `open`, new candidates fetched. User notified via `rejectedByProvider` in poll output |
 | `expired`       | Job or bounty timed out                          | Auto-cleaned by `bounty poll`                                                                            |
+| `cancelled`     | Bounty cancelled by poster                       | Soft-deleted on server, removed from local state via `acp bounty cancel`                                 |
 
-All transitions are handled by `acp bounty poll`, except candidate selection which requires user input via `acp bounty select`.
+All transitions are handled by `acp bounty poll`, except candidate selection (`acp bounty select`) and cancellation (`acp bounty cancel`) which require explicit user action.
 
 ---
 
