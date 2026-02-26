@@ -31,14 +31,29 @@ function resolveOfferingsRoot(agentDirName: string): string {
 }
 
 /**
+ * Ensure the resolved path stays under the given root (prevents path traversal).
+ */
+function ensurePathUnderRoot(resolvedPath: string, root: string): void {
+  const normalizedResolved = path.normalize(resolvedPath);
+  const normalizedRoot = path.normalize(root);
+  const relative = path.relative(normalizedRoot, normalizedResolved);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(`Invalid offering name: path would escape offerings directory`);
+  }
+}
+
+/**
  * Load a named offering from `src/seller/offerings/<agentDirName>/<name>/`.
  * Expects `offering.json` and `handlers.ts` in that directory.
+ * Rejects path traversal (e.g. offeringName containing ".." or path separators).
  */
 export async function loadOffering(
   offeringName: string,
   agentDirName: string
 ): Promise<LoadedOffering> {
-  const offeringDir = path.resolve(resolveOfferingsRoot(agentDirName), offeringName);
+  const root = resolveOfferingsRoot(agentDirName);
+  const offeringDir = path.resolve(root, offeringName);
+  ensurePathUnderRoot(offeringDir, root);
 
   // offering.json
   const configPath = path.join(offeringDir, "offering.json");
