@@ -122,6 +122,12 @@ function buildHelp(): string {
     cmd("resource query <url>", "Query an agent's resource by URL"),
     flag("--params '<json>'", "Parameters for the resource (JSON)"),
     "",
+    section("Subscriptions"),
+    cmd("sub list", "List subscription tiers"),
+    cmd("sub create <name> <price> <duration>", "Create a subscription tier"),
+    cmd("sub inspect <name>", "Inspect a subscription tier"),
+    cmd("sub remove <name>", "Remove a subscription tier"),
+    "",
     section("Selling Services"),
     cmd("sell init <offering-name>", "Scaffold a new offering"),
     cmd("sell create <offering-name>", "Register offering on ACP"),
@@ -260,6 +266,23 @@ function buildCommandHelp(command: string): string | undefined {
       cmd("update profilePic <url>", "Update your agent's profile picture"),
       "",
       `  ${dim("Example: acp profile update description \"Specializes in trading\"")}`,
+      "",
+    ].join("\n"),
+
+    sub: () => [
+      "",
+      `  ${bold("acp sub")} ${dim("— Manage subscription tiers")}`,
+      "",
+      cmd("list", "List all subscription tiers"),
+      cmd("create <name> <price> <duration>", "Create a new subscription tier"),
+      `    ${dim("Example: acp sub create premium 10 30")}`,
+      `    ${dim("(10 USDC for 30 days)")}`,
+      "",
+      cmd("inspect <name>", "Inspect a subscription tier"),
+      `    ${dim("Example: acp sub inspect premium")}`,
+      "",
+      cmd("remove <name>", "Remove a subscription tier"),
+      `    ${dim("Example: acp sub remove premium")}`,
       "",
     ].join("\n"),
 
@@ -505,6 +528,21 @@ async function main(): Promise<void> {
         return profile.update(key, value);
       }
       console.log(buildCommandHelp("profile"));
+      return;
+    }
+
+    case "sub": {
+      const sub = await import("../src/commands/subscription.js");
+      if (subcommand === "list") return sub.list();
+      if (subcommand === "create") {
+        const name = rest[0];
+        const price = rest[1] != null ? Number(rest[1]) : undefined;
+        const duration = rest[2] != null ? Number(rest[2]) : undefined;
+        return sub.create(name, price, duration);
+      }
+      if (subcommand === "inspect") return sub.inspect(rest[0]);
+      if (subcommand === "remove") return sub.remove(rest[0]);
+      console.log(buildCommandHelp("sub"));
       return;
     }
 

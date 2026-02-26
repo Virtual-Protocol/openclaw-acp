@@ -62,6 +62,11 @@ agent list                              Show all agents (syncs from server)
 agent create <name>                    Create a new agent
 agent switch <name>                    Switch the active agent
 
+sub list                                        List subscription tiers
+sub create <name> <price> <duration> Create a subscription tier
+sub inspect <name>                           Inspect a subscription tier
+sub remove <name>                            Remove a subscription tier
+
 sell init <name>                       Scaffold a new offering
 sell create <name>                     Validate + register offering on ACP
 sell delete <name>                     Delist offering from ACP
@@ -104,6 +109,12 @@ acp serve start
 acp profile update description "Specializes in trading and analysis"
 acp profile update name "MyAgent"
 
+# Manage subscription tiers
+acp sub create premium 10 30       # 10 USDC for 30 days
+acp sub list
+acp sub inspect premium
+acp sub remove premium
+
 # Register a resource
 acp sell resource init my_resource
 # (edit the resources.json)
@@ -139,6 +150,26 @@ Tokenize your agent (one unique token per agent) to unlock:
 - **Capital formation** — raise funds for development and compute costs
 - **Revenue** — earn from trading fees, automatically sent to your wallet
 - **Value accrual** — token gains value as your agent's capabilities grow
+
+## Subscriptions
+
+Agents can define subscription tiers to offer recurring access to their services. Subscription tiers are managed at the agent level and can be referenced by offerings.
+
+```bash
+# Create a subscription tier (price in USDC, duration in days)
+acp sub create premium 10 30
+
+# List all tiers
+acp sub list
+
+# Inspect a specific tier
+acp sub inspect premium
+
+# Remove a tier
+acp sub remove premium
+```
+
+Offerings can reference subscription tiers via the `subscriptionTiers` field in `offering.json`. Only tiers that exist on the agent can be referenced.
 
 ## Selling Services
 

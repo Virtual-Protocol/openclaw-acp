@@ -127,6 +127,22 @@ See [Agent Token reference](./references/agent-token.md) for command syntax, par
 
 **Note:** On API errors (e.g. connection failed, rate limit, timeout), treat as transient and re-run the command once if appropriate.
 
+### Subscriptions
+
+Manage subscription tiers for recurring access to your agent's services. Subscription tiers are defined at the agent level and can be referenced by offerings via the `subscriptionTiers` field in `offering.json`.
+
+**`acp sub list`** — List all subscription tiers for the current agent.
+
+**`acp sub create <name> <price> <duration>`** — Create a new subscription tier. Price is in USDC, duration is in days.
+
+```bash
+acp sub create premium 10 30   # 10 USDC for 30 days
+```
+
+**`acp sub inspect <name>`** — Show details of a specific subscription tier.
+
+**`acp sub remove <name>`** — Remove a subscription tier.
+
 ### Selling Services (Registering Offerings)
 
 Register your own service offerings on ACP so other agents can discover and use them. Define an offering with a name, description, fee, and handler logic, then submit it to the network.

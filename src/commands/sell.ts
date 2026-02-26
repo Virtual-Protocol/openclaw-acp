@@ -45,6 +45,7 @@ interface OfferingJson {
   requiredFunds: boolean;
   requirement?: Record<string, any>;
   deliverable?: string;
+  subscriptionTiers?: string[];
 }
 
 interface ValidationResult {
@@ -153,6 +154,16 @@ function validateOfferingJson(filePath: string): ValidationResult {
     result.errors.push('offering.json: "requiredFunds" must be true or false');
   }
 
+  if (json.subscriptionTiers !== undefined) {
+    if (!Array.isArray(json.subscriptionTiers)) {
+      result.valid = false;
+      result.errors.push('offering.json: "subscriptionTiers" must be an array of strings');
+    } else if (json.subscriptionTiers.some((t: any) => typeof t !== "string" || t.trim() === "")) {
+      result.valid = false;
+      result.errors.push('offering.json: "subscriptionTiers" must contain only non-empty strings');
+    }
+  }
+
   return result;
 }
 
@@ -226,6 +237,7 @@ function buildAcpPayload(json: OfferingJson): JobOfferingData {
     requiredFunds: json.requiredFunds,
     requirement: json.requirement ?? {},
     deliverable: json.deliverable ?? "string",
+    ...(json.subscriptionTiers?.length && { subscriptionTiers: json.subscriptionTiers }),
   };
 }
 
@@ -250,6 +262,7 @@ export async function init(offeringName: string): Promise<void> {
     jobFeeType: null,
     requiredFunds: null,
     requirement: {},
+    subscriptionTiers: [],
   };
 
   fs.writeFileSync(
@@ -325,6 +338,9 @@ export async function create(offeringName: string): Promise<void> {
     output.log(`    Valid — Name: "${parsedOffering!.name}"`);
     output.log(`             Fee: ${parsedOffering!.jobFee} USDC`);
     output.log(`             Funds required: ${parsedOffering!.requiredFunds}`);
+    if (parsedOffering!.subscriptionTiers?.length) {
+      output.log(`             Subscription tiers: ${parsedOffering!.subscriptionTiers.join(", ")}`);
+    }
   } else {
     output.log("    Invalid");
   }
@@ -350,6 +366,30 @@ export async function create(offeringName: string): Promise<void> {
   if (allWarnings.length > 0) {
     output.log("\n  Warnings:");
     allWarnings.forEach((w) => output.log(`    - ${w}`));
+  }
+
+  // Validate subscriptionTiers against agent subscriptions
+  if (parsedOffering?.subscriptionTiers?.length) {
+    output.log("\n  Checking subscription tiers...");
+    try {
+      const agentInfo = await getMyAgentInfo();
+      const agentSubNames = (agentInfo.subscriptions ?? []).map((s) => s.name);
+      const invalid = parsedOffering.subscriptionTiers.filter(
+        (tier) => !agentSubNames.includes(tier)
+      );
+      if (invalid.length > 0) {
+        allErrors.push(
+          `offering.json: subscriptionTiers contains tiers not found in agent subscriptions: ${invalid.join(", ")}. ` +
+          `Available: ${agentSubNames.length > 0 ? agentSubNames.join(", ") : "(none)"}`
+        );
+      } else {
+        output.log(`    Valid — all tiers exist in agent subscriptions`);
+      }
+    } catch (err) {
+      allWarnings.push(
+        "Could not fetch agent subscriptions to validate tiers — skipping tier validation"
+      );
+    }
   }
 
   if (allErrors.length > 0) {
@@ -404,6 +444,7 @@ interface LocalOffering {
   jobFee: number;
   jobFeeType: "fixed" | "percentage";
   requiredFunds: boolean;
+  subscriptionTiers?: string[];
 }
 
 function listLocalOfferings(): LocalOffering[] {
@@ -424,6 +465,7 @@ function listLocalOfferings(): LocalOffering[] {
           jobFee: json.jobFee ?? 0,
           jobFeeType: json.jobFeeType ?? "fixed",
           requiredFunds: json.requiredFunds ?? false,
+          subscriptionTiers: json.subscriptionTiers,
         };
       } catch {
         return null;
@@ -503,6 +545,9 @@ export async function list(): Promise<void> {
       }
       output.field("    Fee", `${formatPrice(o.jobFee, o.jobFeeType)}`);
       output.field("    Funds required", String(o.requiredFunds));
+      if (o.subscriptionTiers?.length) {
+        output.field("    Subscription tiers", o.subscriptionTiers.join(", "));
+      }
       output.field("    Status", status);
       if (o.acpOnly) {
         output.log(
@@ -573,6 +618,9 @@ export async function inspect(offeringName: string): Promise<void> {
     output.field("Funds required", String(d.requiredFunds));
     output.field("Status", d.listed ? "Listed on ACP" : "Local only");
     output.field("Handlers", d.handlers.join(", ") || "(none)");
+    if (d.subscriptionTiers?.length) {
+      output.field("Subscription Tiers", d.subscriptionTiers.join(", "));
+    }
     if (d.requirement) {
       output.log("\n  Requirement Schema:");
       output.log(
