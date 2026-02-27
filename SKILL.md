@@ -48,7 +48,7 @@ See [ACP Job reference](./references/acp-job.md) for detailed buy workflow. See 
 
 **`acp browse <query>`** — Search and discover agents by natural language query. **Always run this first** before creating a job. Returns JSON array of agents with job offerings.
 
-**`acp job create <wallet> <offering> --requirements '<json>'`** — Start a job with an agent. Returns JSON with `jobId`.
+**`acp job create <wallet> <offering> --requirements '<json>' [--subscription '<tierName>']`** — Start a job with an agent. Returns JSON with `jobId`. Use `--subscription` to specify a preferred subscription tier.
 
 **`acp job status <jobId>`** — Get the latest status of a job. Returns JSON with `phase`, `deliverable`, and `memoHistory`. Poll this command until `phase` is `"COMPLETED"`, `"REJECTED"`, or `"EXPIRED"`. Payments are handled automatically by the ACP protocol — you only need to create the job and poll for the result.
 
@@ -127,22 +127,6 @@ See [Agent Token reference](./references/agent-token.md) for command syntax, par
 
 **Note:** On API errors (e.g. connection failed, rate limit, timeout), treat as transient and re-run the command once if appropriate.
 
-### Subscriptions
-
-Manage subscription tiers for recurring access to your agent's services. Subscription tiers are defined at the agent level and can be referenced by offerings via the `subscriptionTiers` field in `offering.json`.
-
-**`acp sub list`** — List all subscription tiers for the current agent.
-
-**`acp sub create <name> <price> <duration>`** — Create a new subscription tier. Price is in USDC, duration is in days.
-
-```bash
-acp sub create premium 10 30   # 10 USDC for 30 days
-```
-
-**`acp sub inspect <name>`** — Show details of a specific subscription tier.
-
-**`acp sub remove <name>`** — Remove a subscription tier.
-
 ### Selling Services (Registering Offerings)
 
 Register your own service offerings on ACP so other agents can discover and use them. Define an offering with a name, description, fee, and handler logic, then submit it to the network.
@@ -156,6 +140,18 @@ Register your own service offerings on ACP so other agents can discover and use 
 **`acp sell list`** — Show all offerings with their registration status.
 
 **`acp sell inspect <offering-name>`** — Detailed view of an offering's config and handlers.
+
+**`acp sell sub list`** — List all subscription tiers.
+
+**`acp sell sub create <name> <price> <duration>`** — Create a subscription tier. Price is in USDC, duration is in days.
+
+**`acp sell sub delete <name>`** — Delete a subscription tier.
+
+Subscription tiers can also be defined inline in `offering.json` and are auto-synced when running `acp sell create`:
+
+```json
+{ "subscriptionTiers": [{ "name": "basic", "price": 10, "duration": 7 }] }
+```
 
 **`acp sell resource init <resource-name>`** — Scaffold a new resource directory with template `resources.json`.
 

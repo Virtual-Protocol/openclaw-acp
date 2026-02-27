@@ -26,7 +26,6 @@ export async function list(): Promise<void> {
   console.log(`Subscription tiers for "${agent.name}":\n`);
   for (const tier of tiers) {
     console.log(`  ${tier.name}`);
-    console.log(`    ID:       ${tier.id}`);
     console.log(`    Price:    ${tier.price} USDC`);
     console.log(`    Duration: ${Math.round(tier.duration / 86400)} days`);
     console.log();
