@@ -19,6 +19,8 @@ import {
   deleteJobOffering,
   upsertResourceApi,
   deleteResourceApi,
+  createSubscription,
+  deleteSubscription,
   type JobOfferingData,
   type PriceV2,
   type Resource,
@@ -35,6 +37,12 @@ const OFFERINGS_ROOT = path.resolve(__dirname, "..", "seller", "offerings");
 /** Resources live at src/seller/resources/ */
 const RESOURCES_ROOT = path.resolve(__dirname, "..", "seller", "resources");
 
+interface InlineSubscriptionTier {
+  name: string;
+  price: number;    // USDC
+  duration: number; // days
+}
+
 interface OfferingJson {
   name: string;
   description: string;
@@ -45,6 +53,7 @@ interface OfferingJson {
   requiredFunds: boolean;
   requirement?: Record<string, any>;
   deliverable?: string;
+  subscriptionTiers?: InlineSubscriptionTier[];
 }
 
 interface ValidationResult {
@@ -153,6 +162,42 @@ function validateOfferingJson(filePath: string): ValidationResult {
     result.errors.push('offering.json: "requiredFunds" must be true or false');
   }
 
+  if (json.subscriptionTiers !== undefined) {
+    if (!Array.isArray(json.subscriptionTiers)) {
+      result.valid = false;
+      result.errors.push('offering.json: "subscriptionTiers" must be an array of tier objects');
+    } else {
+      for (let i = 0; i < json.subscriptionTiers.length; i++) {
+        const tier = json.subscriptionTiers[i];
+        if (typeof tier !== "object" || tier === null) {
+          result.valid = false;
+          result.errors.push(`offering.json: subscriptionTiers[${i}] must be an object with {name, price, duration}`);
+          continue;
+        }
+        if (!tier.name || typeof tier.name !== "string" || tier.name.trim() === "") {
+          result.valid = false;
+          result.errors.push(`offering.json: subscriptionTiers[${i}].name is required (non-empty string)`);
+        }
+        if (tier.price == null || typeof tier.price !== "number" || tier.price <= 0) {
+          result.valid = false;
+          result.errors.push(`offering.json: subscriptionTiers[${i}].price must be a positive number (USDC)`);
+        }
+        if (tier.duration == null || typeof tier.duration !== "number" || tier.duration <= 0) {
+          result.valid = false;
+          result.errors.push(`offering.json: subscriptionTiers[${i}].duration must be a positive number (days)`);
+        }
+      }
+      const names = json.subscriptionTiers
+        .filter((t: any) => typeof t === "object" && t?.name)
+        .map((t: any) => t.name);
+      const dupes = names.filter((n: string, i: number) => names.indexOf(n) !== i);
+      if (dupes.length > 0) {
+        result.valid = false;
+        result.errors.push(`offering.json: duplicate subscription tier names: ${[...new Set(dupes)].join(", ")}`);
+      }
+    }
+  }
+
   return result;
 }
 
@@ -226,6 +271,9 @@ function buildAcpPayload(json: OfferingJson): JobOfferingData {
     requiredFunds: json.requiredFunds,
     requirement: json.requirement ?? {},
     deliverable: json.deliverable ?? "string",
+    ...(json.subscriptionTiers?.length && {
+      subscriptionTiers: json.subscriptionTiers.map((t) => t.name),
+    }),
   };
 }
 
@@ -325,6 +373,9 @@ export async function create(offeringName: string): Promise<void> {
     output.log(`    Valid — Name: "${parsedOffering!.name}"`);
     output.log(`             Fee: ${parsedOffering!.jobFee} USDC`);
     output.log(`             Funds required: ${parsedOffering!.requiredFunds}`);
+    if (parsedOffering!.subscriptionTiers?.length) {
+      output.log(`             Subscription tiers: ${parsedOffering!.subscriptionTiers.map((t) => `${t.name} (${t.price} USDC, ${t.duration}d)`).join(", ")}`);
+    }
   } else {
     output.log("    Invalid");
   }
@@ -350,6 +401,36 @@ export async function create(offeringName: string): Promise<void> {
   if (allWarnings.length > 0) {
     output.log("\n  Warnings:");
     allWarnings.forEach((w) => output.log(`    - ${w}`));
+  }
+
+  // Sync subscription tiers with backend
+  if (parsedOffering?.subscriptionTiers?.length) {
+    output.log("\n  Syncing subscription tiers...");
+    try {
+      const agentInfo = await getMyAgentInfo();
+      const existingTiers = agentInfo.subscriptions ?? [];
+
+      for (const tier of parsedOffering.subscriptionTiers) {
+        const existing = existingTiers.find((t) => t.name === tier.name);
+        if (existing) {
+          const durationSeconds = tier.duration * 86400;
+          if (existing.price !== tier.price || existing.duration !== durationSeconds) {
+            await deleteSubscription(tier.name);
+            await createSubscription({ name: tier.name, price: tier.price, duration: tier.duration });
+            output.log(`    Updated tier "${tier.name}" (${tier.price} USDC, ${tier.duration} days)`);
+          } else {
+            output.log(`    Tier "${tier.name}" already exists — no change`);
+          }
+        } else {
+          await createSubscription({ name: tier.name, price: tier.price, duration: tier.duration });
+          output.log(`    Created tier "${tier.name}" (${tier.price} USDC, ${tier.duration} days)`);
+        }
+      }
+    } catch (err) {
+      allErrors.push(
+        `Failed to sync subscription tiers: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
   }
 
   if (allErrors.length > 0) {
@@ -404,6 +485,7 @@ interface LocalOffering {
   jobFee: number;
   jobFeeType: "fixed" | "percentage";
   requiredFunds: boolean;
+  subscriptionTiers?: InlineSubscriptionTier[];
 }
 
 function listLocalOfferings(): LocalOffering[] {
@@ -424,7 +506,8 @@ function listLocalOfferings(): LocalOffering[] {
           jobFee: json.jobFee ?? 0,
           jobFeeType: json.jobFeeType ?? "fixed",
           requiredFunds: json.requiredFunds ?? false,
-        };
+          ...(json.subscriptionTiers && { subscriptionTiers: json.subscriptionTiers }),
+        } as LocalOffering;
       } catch {
         return null;
       }
@@ -503,6 +586,9 @@ export async function list(): Promise<void> {
       }
       output.field("    Fee", `${formatPrice(o.jobFee, o.jobFeeType)}`);
       output.field("    Funds required", String(o.requiredFunds));
+      if (o.subscriptionTiers?.length) {
+        output.field("    Subscription tiers", o.subscriptionTiers.map((t: InlineSubscriptionTier) => `${t.name} (${t.price} USDC, ${t.duration}d)`).join(", "));
+      }
       output.field("    Status", status);
       if (o.acpOnly) {
         output.log(
@@ -573,6 +659,9 @@ export async function inspect(offeringName: string): Promise<void> {
     output.field("Funds required", String(d.requiredFunds));
     output.field("Status", d.listed ? "Listed on ACP" : "Local only");
     output.field("Handlers", d.handlers.join(", ") || "(none)");
+    if (d.subscriptionTiers?.length) {
+      output.field("Subscription Tiers", d.subscriptionTiers.map((t: InlineSubscriptionTier) => `${t.name} (${t.price} USDC, ${t.duration}d)`).join(", "));
+    }
     if (d.requirement) {
       output.log("\n  Requirement Schema:");
       output.log(

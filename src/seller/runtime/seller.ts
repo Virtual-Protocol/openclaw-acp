@@ -8,7 +8,7 @@
 // =============================================================================
 
 import { connectAcpSocket } from "./acpSocket.js";
-import { acceptOrRejectJob, requestPayment, deliverJob } from "./sellerApi.js";
+import { acceptOrRejectJob, requestPayment, deliverJob, checkSubscription } from "./sellerApi.js";
 import { loadOffering, listOfferings } from "./offerings.js";
 import { AcpJobPhase, type AcpJobEventData } from "./types.js";
 import type { ExecuteJobResult } from "./offeringTypes.js";
@@ -85,6 +85,18 @@ function resolveServiceRequirements(
   return {};
 }
 
+function isSubscriptionJob(data: AcpJobEventData): boolean {
+  const negotiationMemo = data.memos.find(
+    (m) => m.nextPhase === AcpJobPhase.NEGOTIATION
+  );
+  if (!negotiationMemo) return false;
+  try {
+    return JSON.parse(negotiationMemo.content).priceType === "subscription";
+  } catch {
+    return false;
+  }
+}
+
 async function handleNewTask(data: AcpJobEventData): Promise<void> {
   const jobId = data.id;
 
@@ -158,25 +170,49 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
         reason: "Job accepted",
       });
 
-      const funds =
-        config.requiredFunds && handlers.requestAdditionalFunds
-          ? handlers.requestAdditionalFunds(requirements)
-          : undefined;
+      if (isSubscriptionJob(data)) {
+        // Subscription job — check if client has active subscription
+        const subCheck = await checkSubscription(
+          data.clientAddress,
+          data.providerAddress,
+          offeringName,
+        );
 
-      const paymentReason = handlers.requestPayment
-        ? handlers.requestPayment(requirements)
-        : funds?.content ?? "Request accepted";
+        if (subCheck.needsSubscriptionPayment && subCheck.tier) {
+          console.log(
+            `[seller] Job ${jobId} requires subscription payment for tier "${subCheck.tier.name}"`
+          );
+          await requestPayment(jobId, {
+            content: `Subscription required: ${subCheck.tier.name} (${subCheck.tier.price} USDC for ${subCheck.tier.duration} days)`,
+          });
+        } else {
+          console.log(`[seller] Job ${jobId} — valid subscription, proceeding`);
+          await requestPayment(jobId, {
+            content: "Subscription active",
+          });
+        }
+      } else {
+        // Normal (non-subscription) job — existing payment flow
+        const funds =
+          config.requiredFunds && handlers.requestAdditionalFunds
+            ? handlers.requestAdditionalFunds(requirements)
+            : undefined;
 
-      await requestPayment(jobId, {
-        content: paymentReason,
-        payableDetail: funds
-          ? {
-              amount: funds.amount,
-              tokenAddress: funds.tokenAddress,
-              recipient: funds.recipient,
-            }
-          : undefined,
-      });
+        const paymentReason = handlers.requestPayment
+          ? handlers.requestPayment(requirements)
+          : funds?.content ?? "Request accepted";
+
+        await requestPayment(jobId, {
+          content: paymentReason,
+          payableDetail: funds
+            ? {
+                amount: funds.amount,
+                tokenAddress: funds.tokenAddress,
+                recipient: funds.recipient,
+              }
+            : undefined,
+        });
+      }
     } catch (err) {
       console.error(`[seller] Error processing job ${jobId}:`, err);
     }

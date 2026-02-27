@@ -18,6 +18,7 @@ export interface JobOfferingData {
   requirement: Record<string, any>;
   deliverable: string;
   resources?: Resource[];
+  subscriptionTiers?: string[];
 }
 
 export interface Resource {
@@ -97,6 +98,34 @@ export async function deleteResourceApi(
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error(`ACP deleteResource failed: ${msg}`);
+    return { success: false };
+  }
+}
+
+export async function createSubscription(tier: {
+  name: string;
+  price: number;
+  duration: number;
+}): Promise<{ success: boolean; data?: { id: number; name: string; price: number; duration: number } }> {
+  try {
+    const { data } = await client.post(`/acp/subscriptions`, tier);
+    return { success: true, data: data.data };
+  } catch (error: any) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`ACP createSubscription failed: ${msg}`);
+    return { success: false };
+  }
+}
+
+export async function deleteSubscription(
+  name: string
+): Promise<{ success: boolean }> {
+  try {
+    await client.delete(`/acp/subscriptions/${encodeURIComponent(name)}`);
+    return { success: true };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`ACP deleteSubscription failed: ${msg}`);
     return { success: false };
   }
 }
