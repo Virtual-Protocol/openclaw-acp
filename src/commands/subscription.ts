@@ -1,11 +1,10 @@
 // =============================================================================
-// Subscription tier management commands.
+// Subscription tier management commands (under `acp sell sub`).
 //
 // Usage:
-//   acp sub list
-//   acp sub create <name> <price> <duration>
-//   acp sub inspect <name>
-//   acp sub remove <name>
+//   acp sell sub list
+//   acp sell sub create <name> <price> <duration>
+//   acp sell sub delete <name>
 // =============================================================================
 
 import { getMyAgentInfo } from "../lib/wallet.js";
@@ -20,7 +19,7 @@ export async function list(): Promise<void> {
 
   if (tiers.length === 0) {
     console.log("No subscription tiers configured.");
-    console.log('Run `acp sub create <name> <price> <duration>` to create one.');
+    console.log('Run `acp sell sub create <name> <price> <duration>` to create one.');
     return;
   }
 
@@ -29,7 +28,7 @@ export async function list(): Promise<void> {
     console.log(`  ${tier.name}`);
     console.log(`    ID:       ${tier.id}`);
     console.log(`    Price:    ${tier.price} USDC`);
-    console.log(`    Duration: ${tier.duration} days`);
+    console.log(`    Duration: ${Math.round(tier.duration / 86400)} days`);
     console.log();
   }
 }
@@ -44,17 +43,17 @@ export async function create(
 ): Promise<void> {
   if (!name) {
     console.error("Error: Missing subscription tier name.");
-    console.error("Usage: acp sub create <name> <price> <duration>");
+    console.error("Usage: acp sell sub create <name> <price> <duration>");
     process.exit(1);
   }
   if (price == null || isNaN(price) || price <= 0) {
     console.error("Error: Price must be a positive number.");
-    console.error("Usage: acp sub create <name> <price> <duration>");
+    console.error("Usage: acp sell sub create <name> <price> <duration>");
     process.exit(1);
   }
   if (duration == null || isNaN(duration) || duration <= 0) {
     console.error("Error: Duration must be a positive number (days).");
-    console.error("Usage: acp sub create <name> <price> <duration>");
+    console.error("Usage: acp sell sub create <name> <price> <duration>");
     process.exit(1);
   }
 
@@ -71,50 +70,21 @@ export async function create(
 }
 
 /**
- * Inspect a subscription tier by name.
+ * Delete a subscription tier by name.
  */
-export async function inspect(name: string | undefined): Promise<void> {
+export async function del(name: string | undefined): Promise<void> {
   if (!name) {
     console.error("Error: Missing subscription tier name.");
-    console.error("Usage: acp sub inspect <name>");
-    process.exit(1);
-  }
-
-  const agent = await getMyAgentInfo();
-  const tiers = agent.subscriptions ?? [];
-  const tier = tiers.find((t) => t.name === name);
-
-  if (!tier) {
-    console.error(`Subscription tier "${name}" not found.`);
-    const available = tiers.map((t) => t.name).join(", ");
-    if (available) {
-      console.error(`Available tiers: ${available}`);
-    }
-    process.exit(1);
-  }
-
-  console.log(`Subscription tier: ${tier.name}\n`);
-  console.log(`  ID:       ${tier.id}`);
-  console.log(`  Price:    ${tier.price} USDC`);
-  console.log(`  Duration: ${tier.duration} days`);
-}
-
-/**
- * Remove a subscription tier by name.
- */
-export async function remove(name: string | undefined): Promise<void> {
-  if (!name) {
-    console.error("Error: Missing subscription tier name.");
-    console.error("Usage: acp sub remove <name>");
+    console.error("Usage: acp sell sub delete <name>");
     process.exit(1);
   }
 
   const result = await deleteSubscription(name);
 
   if (!result.success) {
-    console.error(`Failed to remove subscription tier "${name}".`);
+    console.error(`Failed to delete subscription tier "${name}".`);
     process.exit(1);
   }
 
-  console.log(`Subscription tier "${name}" removed.`);
+  console.log(`Subscription tier "${name}" deleted.`);
 }

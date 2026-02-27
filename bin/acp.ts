@@ -122,18 +122,16 @@ function buildHelp(): string {
     cmd("resource query <url>", "Query an agent's resource by URL"),
     flag("--params '<json>'", "Parameters for the resource (JSON)"),
     "",
-    section("Subscriptions"),
-    cmd("sub list", "List subscription tiers"),
-    cmd("sub create <name> <price> <duration>", "Create a subscription tier"),
-    cmd("sub inspect <name>", "Inspect a subscription tier"),
-    cmd("sub remove <name>", "Remove a subscription tier"),
-    "",
     section("Selling Services"),
     cmd("sell init <offering-name>", "Scaffold a new offering"),
     cmd("sell create <offering-name>", "Register offering on ACP"),
     cmd("sell delete <offering-name>", "Delist offering from ACP"),
     cmd("sell list", "Show all offerings with status"),
     cmd("sell inspect <offering-name>", "Detailed view of an offering"),
+    "",
+    cmd("sell sub list", "List subscription tiers"),
+    cmd("sell sub create <name> <price> <dur>", "Create a subscription tier"),
+    cmd("sell sub delete <name>", "Delete a subscription tier"),
     "",
     cmd("sell resource init <resource-name>", "Scaffold a new resource"),
     cmd("sell resource create <resource-name>", "Register resource on ACP"),
@@ -269,23 +267,6 @@ function buildCommandHelp(command: string): string | undefined {
       "",
     ].join("\n"),
 
-    sub: () => [
-      "",
-      `  ${bold("acp sub")} ${dim("— Manage subscription tiers")}`,
-      "",
-      cmd("list", "List all subscription tiers"),
-      cmd("create <name> <price> <duration>", "Create a new subscription tier"),
-      `    ${dim("Example: acp sub create premium 10 30")}`,
-      `    ${dim("(10 USDC for 30 days)")}`,
-      "",
-      cmd("inspect <name>", "Inspect a subscription tier"),
-      `    ${dim("Example: acp sub inspect premium")}`,
-      "",
-      cmd("remove <name>", "Remove a subscription tier"),
-      `    ${dim("Example: acp sub remove premium")}`,
-      "",
-    ].join("\n"),
-
     sell: () => [
       "",
       `  ${bold("acp sell")} ${dim("— Create and manage service offerings")}`,
@@ -295,6 +276,11 @@ function buildCommandHelp(command: string): string | undefined {
       cmd("delete <offering-name>", "Delist offering from ACP"),
       cmd("list", "Show all offerings with status"),
       cmd("inspect <offering-name>", "Detailed view of an offering"),
+      "",
+      cmd("sub list", "List subscription tiers"),
+      cmd("sub create <name> <price> <duration>", "Create a subscription tier"),
+      `    ${dim("Example: acp sell sub create premium 10 30  (10 USDC for 30 days)")}`,
+      cmd("sub delete <name>", "Delete a subscription tier"),
       "",
       cmd("resource init <resource-name>", "Scaffold a new resource"),
       cmd("resource create <resource-name>", "Register resource on ACP"),
@@ -429,6 +415,7 @@ async function main(): Promise<void> {
         const offering = rest[1];
         let remaining = rest.slice(2);
         const reqJson = getFlagValue(remaining, "--requirements");
+        const subscriptionTier = getFlagValue(remaining, "--subscription") ?? undefined;
         let requirements: Record<string, unknown> = {};
         if (reqJson) {
           try {
@@ -438,7 +425,7 @@ async function main(): Promise<void> {
             process.exit(1);
           }
         }
-        return job.create(walletAddr, offering, requirements);
+        return job.create(walletAddr, offering, requirements, subscriptionTier);
       }
       if (subcommand === "status") {
         return job.status(rest[0]);
@@ -531,23 +518,22 @@ async function main(): Promise<void> {
       return;
     }
 
-    case "sub": {
-      const sub = await import("../src/commands/subscription.js");
-      if (subcommand === "list") return sub.list();
-      if (subcommand === "create") {
-        const name = rest[0];
-        const price = rest[1] != null ? Number(rest[1]) : undefined;
-        const duration = rest[2] != null ? Number(rest[2]) : undefined;
-        return sub.create(name, price, duration);
-      }
-      if (subcommand === "inspect") return sub.inspect(rest[0]);
-      if (subcommand === "remove") return sub.remove(rest[0]);
-      console.log(buildCommandHelp("sub"));
-      return;
-    }
-
     case "sell": {
       const sell = await import("../src/commands/sell.js");
+      if (subcommand === "sub") {
+        const sub = await import("../src/commands/subscription.js");
+        const subSubcommand = rest[0];
+        if (subSubcommand === "list") return sub.list();
+        if (subSubcommand === "create") {
+          const name = rest[1];
+          const price = rest[2] != null ? Number(rest[2]) : undefined;
+          const duration = rest[3] != null ? Number(rest[3]) : undefined;
+          return sub.create(name, price, duration);
+        }
+        if (subSubcommand === "delete") return sub.del(rest[1]);
+        console.log(buildCommandHelp("sell"));
+        return;
+      }
       if (subcommand === "resource") {
         const resourceSubcommand = rest[0];
         if (resourceSubcommand === "init") return sell.resourceInit(rest[1]);

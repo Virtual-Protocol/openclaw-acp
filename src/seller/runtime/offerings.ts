@@ -18,7 +18,7 @@ export interface OfferingConfig {
   jobFee: number;
   jobFeeType: "fixed" | "percentage";
   requiredFunds: boolean;
-  subscriptionTiers?: string[];
+  subscriptionTiers?: { name: string; price: number; duration: number }[];
 }
 
 export interface LoadedOffering {
