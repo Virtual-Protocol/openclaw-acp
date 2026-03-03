@@ -103,7 +103,8 @@ export async function getAuthUrl(): Promise<AuthUrlResponse> {
 
 export async function getAuthStatus(requestId: string): Promise<AuthStatusResponse | null> {
   const { data } = await apiClient().get<{ data: AuthStatusResponse }>(
-    `/api/auth/lite/auth-status?requestId=${requestId}`
+    "/api/auth/lite/auth-status",
+    { params: { requestId } }
   );
   return data?.data ?? null;
 }

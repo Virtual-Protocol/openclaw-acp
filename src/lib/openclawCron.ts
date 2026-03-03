@@ -9,7 +9,7 @@
 // run `acp bounty poll --json` and act on the results.
 // =============================================================================
 
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { ROOT, readConfig, writeConfig } from "./config.js";
 import { listActiveBounties } from "./bounty.js";
 
@@ -36,7 +36,7 @@ const POLL_SYSTEM_EVENT = [
 ].join("\n");
 
 function runCli(args: string[]): string {
-  return execSync(`openclaw cron ${args.join(" ")}`, {
+  return execFileSync("openclaw", ["cron", ...args], {
     cwd: ROOT,
     stdio: ["ignore", "pipe", "pipe"],
     encoding: "utf-8",

@@ -49,7 +49,39 @@ function setupCleanupHandlers(): void {
 // -- Config --
 
 const ACP_URL = process.env.ACP_SOCKET_URL || "https://acpx.virtuals.io";
+const MAX_CONCURRENT_JOBS = Math.max(
+  1,
+  parseInt(process.env.SELLER_MAX_CONCURRENT_JOBS || "5", 10) || 5
+);
 let agentDirName: string = "";
+
+// -- Concurrency limit (high load: many robots requesting) --
+
+let runningJobs = 0;
+const jobQueue: Array<{ data: AcpJobEventData }> = [];
+
+function processNextQueuedJob(): void {
+  if (runningJobs >= MAX_CONCURRENT_JOBS || jobQueue.length === 0) return;
+  const { data } = jobQueue.shift()!;
+  runningJobs++;
+  handleNewTask(data)
+    .catch((err) => console.error("[seller] Unhandled error in handleNewTask:", err))
+    .finally(() => {
+      runningJobs--;
+      processNextQueuedJob();
+    });
+}
+
+function enqueueJob(data: AcpJobEventData): void {
+  const wasEmpty = jobQueue.length === 0;
+  jobQueue.push({ data });
+  if (wasEmpty && runningJobs >= MAX_CONCURRENT_JOBS) {
+    console.log(
+      `[seller] Job ${data.id} queued (${runningJobs} running, ${jobQueue.length} in queue)`
+    );
+  }
+  processNextQueuedJob();
+}
 
 // -- Job handling --
 
@@ -104,6 +136,15 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
       await acceptOrRejectJob(jobId, {
         accept: false,
         reason: "Invalid offering name",
+      });
+      return;
+    }
+
+    const knownOfferings = listOfferings(agentDirName);
+    if (!knownOfferings.includes(offeringName)) {
+      await acceptOrRejectJob(jobId, {
+        accept: false,
+        reason: "Unknown offering",
       });
       return;
     }
@@ -172,7 +213,7 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
     const offeringName = resolveOfferingName(data);
     const requirements = resolveServiceRequirements(data);
 
-    if (offeringName) {
+    if (offeringName && listOfferings(agentDirName).includes(offeringName)) {
       try {
         const { handlers } = await loadOffering(offeringName, agentDirName);
         console.log(
@@ -189,7 +230,9 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
         console.error(`[seller] Error delivering job ${jobId}:`, err);
       }
     } else {
-      console.log(`[seller] Job ${jobId} in TRANSACTION but no offering resolved — skipping`);
+      console.log(
+        `[seller] Job ${jobId} in TRANSACTION — unknown offering or none resolved, skipping`
+      );
     }
     return;
   }
@@ -224,14 +267,16 @@ async function main() {
     `[seller] Available offerings: ${offerings.length > 0 ? offerings.join(", ") : "(none)"}`
   );
 
+  console.log(
+    `[seller] Max concurrent jobs: ${MAX_CONCURRENT_JOBS} (set SELLER_MAX_CONCURRENT_JOBS to change)`
+  );
+
   connectAcpSocket({
     acpUrl: ACP_URL,
     walletAddress,
     callbacks: {
       onNewTask: (data) => {
-        handleNewTask(data).catch((err) =>
-          console.error("[seller] Unhandled error in handleNewTask:", err)
-        );
+        enqueueJob(data);
       },
       onEvaluate: (data) => {
         console.log(

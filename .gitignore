@@ -46,6 +46,7 @@ local/
 active-bounties.json
 
 test-dev.md
+.commit-msg
 
 .env.example
 .env

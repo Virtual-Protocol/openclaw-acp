@@ -145,21 +145,34 @@ export function findSellerPid(): number | undefined {
   if (config.SELLER_PID !== undefined) {
     removePidFromConfig();
   }
-  // Fallback: scan OS processes
+  // Fallback: scan OS processes (platform-specific)
   try {
     const { execSync } = require("child_process");
-    const out = execSync('ps ax -o pid,command | grep "seller/runtime/seller.ts" | grep -v grep', {
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    for (const line of out.trim().split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const pid = parseInt(trimmed.split(/\s+/)[0], 10);
-      if (!isNaN(pid) && pid !== process.pid) return pid;
+    if (process.platform === "win32") {
+      const out = execSync(
+        "wmic process where \"name='node.exe'\" get ProcessId,CommandLine /format:csv",
+        { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
+      );
+      for (const line of out.split(/\r?\n/)) {
+        if (!line.toLowerCase().includes("seller/runtime/seller")) continue;
+        const cols = line.split(",");
+        const pid = parseInt(cols[1], 10);
+        if (!isNaN(pid) && pid !== process.pid) return pid;
+      }
+    } else {
+      const out = execSync(
+        'ps ax -o pid,command | grep "seller/runtime/seller.ts" | grep -v grep',
+        { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
+      );
+      for (const line of out.trim().split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const pid = parseInt(trimmed.split(/\s+/)[0], 10);
+        if (!isNaN(pid) && pid !== process.pid) return pid;
+      }
     }
   } catch {
-    // grep returns exit code 1 when no matches
+    // Command failed or no matches
   }
   return undefined;
 }

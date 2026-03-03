@@ -5,7 +5,7 @@
 // project path. We read/write that to manage per-agent project linking.
 // =============================================================================
 
-import { execSync, spawn } from "child_process";
+import { execSync, execFileSync, spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -154,14 +154,14 @@ export function hasLinkedService(): boolean {
 // -- Variables --
 
 export function setVariable(key: string, value: string): void {
-  execSync(`railway variables set ${key}="${value}"`, {
+  execFileSync("railway", ["variables", "set", `${key}=${value}`], {
     ...EXEC_OPTS,
     stdio: ["pipe", "pipe", "pipe"],
   });
 }
 
 export function deleteVariable(key: string): void {
-  execSync(`railway variables delete ${key}`, {
+  execFileSync("railway", ["variables", "delete", key], {
     ...EXEC_OPTS,
     stdio: ["pipe", "pipe", "pipe"],
   });
