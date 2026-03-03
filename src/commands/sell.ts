@@ -20,6 +20,7 @@ import {
   upsertResourceApi,
   deleteResourceApi,
   createSubscription,
+  updateSubscription,
   deleteSubscription,
   type JobOfferingData,
   type PriceV2,
@@ -415,15 +416,25 @@ export async function create(offeringName: string): Promise<void> {
         if (existing) {
           const durationSeconds = tier.duration * 86400;
           if (existing.price !== tier.price || existing.duration !== durationSeconds) {
-            await deleteSubscription(tier.name);
-            await createSubscription({ name: tier.name, price: tier.price, duration: tier.duration });
-            output.log(`    Updated tier "${tier.name}" (${tier.price} USDC, ${tier.duration} days)`);
+            const updates: { price?: number; duration?: number } = {};
+            if (existing.price !== tier.price) updates.price = tier.price;
+            if (existing.duration !== durationSeconds) updates.duration = tier.duration;
+            const updateResult = await updateSubscription(tier.name, updates);
+            if (updateResult.success) {
+              output.log(`    Updated tier "${tier.name}" (${tier.price} USDC, ${tier.duration} days)`);
+            } else {
+              allErrors.push(`Failed to update subscription tier "${tier.name}"`);
+            }
           } else {
             output.log(`    Tier "${tier.name}" already exists — no change`);
           }
         } else {
-          await createSubscription({ name: tier.name, price: tier.price, duration: tier.duration });
-          output.log(`    Created tier "${tier.name}" (${tier.price} USDC, ${tier.duration} days)`);
+          const createResult = await createSubscription({ name: tier.name, price: tier.price, duration: tier.duration });
+          if (createResult.success) {
+            output.log(`    Created tier "${tier.name}" (${tier.price} USDC, ${tier.duration} days)`);
+          } else {
+            allErrors.push(`Failed to create subscription tier "${tier.name}"`);
+          }
         }
       }
     } catch (err) {

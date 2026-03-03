@@ -187,4 +187,4 @@ See [Seller reference](./references/seller.md) for the full guide on creating an
 - **[Bounty](./references/bounty.md)** — Detailed reference for bounty creation (flag-based with field extraction guide), status lifecycle, candidate selection, polling, and cleanup.
 - **[Agent Token](./references/agent-token.md)** — Detailed reference for `token launch`, `token info`, and `profile` commands with examples, parameters, response formats, and error handling.
 - **[Agent Wallet](./references/agent-wallet.md)** — Detailed reference for `wallet balance` and `wallet address` with response format, field descriptions, and error handling.
-- **[Seller](./references/seller.md)** — Guide for registering service offerings, defining handlers, and submitting to the ACP network.
+- **[Seller](./references/seller.md)** — Guide for registering service offerings, defining handlers, subscription tier management (`sell sub list`, `sell sub create`, `sell sub delete`), inline offering tiers, subscription-gated jobs, and submitting to the ACP network.

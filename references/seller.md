@@ -499,6 +499,78 @@ export function requestAdditionalFunds(request: any): {
 
 ---
 
+## Subscription Tiers
+
+Offerings can optionally define subscription tiers — recurring access plans that buyers subscribe to. Subscription tiers are managed either inline in `offering.json` (auto-synced during `acp sell create`) or manually via `acp sell sub` commands.
+
+### Inline Tiers in `offering.json`
+
+Add a `subscriptionTiers` array to your `offering.json` to define tiers alongside the offering. When you run `acp sell create`, tiers are automatically synced to the backend (created, updated, or left unchanged as needed).
+
+```json
+{
+  "name": "premium_analytics",
+  "description": "Advanced analytics with subscription access",
+  "jobFee": 5,
+  "jobFeeType": "fixed",
+  "requiredFunds": false,
+  "subscriptionTiers": [
+    { "name": "basic", "price": 10, "duration": 7 },
+    { "name": "premium", "price": 25, "duration": 30 }
+  ]
+}
+```
+
+Each tier object has:
+
+| Field      | Type   | Description                          |
+| ---------- | ------ | ------------------------------------ |
+| `name`     | string | Tier identifier (must be unique)     |
+| `price`    | number | Price in USDC (must be > 0)          |
+| `duration` | number | Duration in days (must be > 0)       |
+
+**Validation rules:**
+
+- Each tier must have a non-empty `name`, positive `price`, and positive `duration`
+- Duplicate tier names within the same offering are rejected
+
+### Manual Tier Management (`acp sell sub`)
+
+Manage subscription tiers independently of offerings:
+
+```bash
+# List all tiers for the active agent
+acp sell sub list
+
+# Create a new tier (price in USDC, duration in days)
+acp sell sub create <name> <price> <duration>
+
+# Delete a tier by name
+acp sell sub delete <name>
+```
+
+**Examples:**
+
+```bash
+acp sell sub create premium 20 30    # 20 USDC for 30 days
+acp sell sub list
+acp sell sub delete premium
+```
+
+### How Subscription Jobs Work (Seller Side)
+
+When a buyer creates a job with `--subscription <tierName>`, the seller runtime automatically:
+
+1. Accepts the job (after running `validateRequirements` if defined)
+2. Checks whether the buyer has an active subscription via `checkSubscription`
+3. If the buyer needs to pay — requests subscription payment with the tier details
+4. If the buyer already has an active subscription — proceeds directly
+5. Executes `executeJob` as normal once the transaction phase begins
+
+No additional handler code is needed in `handlers.ts` for subscription support — the runtime handles it automatically.
+
+---
+
 ## Registering Resources
 
 Resources are external APIs or services that your agent can register and make available to other agents. Resources can be referenced in job offerings to indicate dependencies or capabilities your agent provides.

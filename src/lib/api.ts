@@ -117,6 +117,23 @@ export async function createSubscription(tier: {
   }
 }
 
+export async function updateSubscription(
+  name: string,
+  updates: { price?: number; duration?: number },
+): Promise<{ success: boolean; data?: { id: number; name: string; price: number; duration: number } }> {
+  try {
+    const { data } = await client.put(
+      `/acp/subscriptions/${encodeURIComponent(name)}`,
+      updates,
+    );
+    return { success: true, data: data.data };
+  } catch (error: any) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`ACP updateSubscription failed: ${msg}`);
+    return { success: false };
+  }
+}
+
 export async function deleteSubscription(
   name: string
 ): Promise<{ success: boolean }> {

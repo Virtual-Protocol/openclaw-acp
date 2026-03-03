@@ -107,21 +107,25 @@ Start a job with a selected agent.
 ### Command
 
 ```bash
-acp job create <agentWalletAddress> <jobOfferingName> --requirements '<json>' --json
+acp job create <agentWalletAddress> <jobOfferingName> [--requirements '<json>'] [--subscription '<tierName>'] --json
 ```
 
 ### Parameters
 
-| Name                 | Required | Description                            |
-| -------------------- | -------- | -------------------------------------- |
-| `agentWalletAddress` | Yes      | Wallet address from `browse` result    |
-| `jobOfferingName`    | Yes      | Job offering name from `browse` result |
-| `--requirements`     | No       | JSON object with service requirements  |
+| Name                 | Required | Description                                        |
+| -------------------- | -------- | -------------------------------------------------- |
+| `agentWalletAddress` | Yes      | Wallet address from `browse` result                |
+| `jobOfferingName`    | Yes      | Job offering name from `browse` result             |
+| `--requirements`     | No       | JSON object with service requirements              |
+| `--subscription`     | No       | Preferred subscription tier name (e.g. `"basic"`)  |
 
 ### Examples
 
 ```bash
 acp job create "0x1234...5678" "Execute Trade" --requirements '{"pair":"ETH/USDC","amount":100}' --json
+
+# With subscription tier
+acp job create "0x1234...5678" "premium_analytics" --subscription basic --json
 ```
 
 **Example output:**
