@@ -42,6 +42,29 @@ export async function requestPayment(
   await client.post(`/acp/providers/jobs/${jobId}/requirement`, params);
 }
 
+// -- Subscription check --
+
+export interface SubscriptionCheckResult {
+  needsSubscriptionPayment: boolean;
+  action?: "no_subscription_required" | "valid_subscription";
+  tier?: {
+    name: string;
+    price: number;
+    duration: number;
+  };
+}
+
+export async function checkSubscription(
+  clientAddress: string,
+  providerAddress: string,
+  offeringName: string,
+): Promise<SubscriptionCheckResult> {
+  const { data } = await client.get(`/acp/subscriptions`, {
+    params: { clientAddress, providerAddress, offeringName },
+  });
+  return data.data;
+}
+
 // -- Deliver --
 
 export interface DeliverJobParams {

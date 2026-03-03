@@ -1,5 +1,5 @@
 // =============================================================================
-// acp job create <wallet> <offering> [--requirements '{}']
+// acp job create <wallet> <offering> [--requirements '{}'] [--subscription '<subscriptionTier>']
 // acp job status <jobId>
 // acp job active
 // acp job completed
@@ -13,12 +13,19 @@ import { getBountyByJobId } from "../lib/bounty.js";
 export async function create(
   agentWalletAddress: string,
   jobOfferingName: string,
-  serviceRequirements: Record<string, unknown>
+  serviceRequirements: Record<string, unknown>,
+  preferredSubscriptionTier?: string,
 ): Promise<void> {
   if (!agentWalletAddress || !jobOfferingName) {
     output.fatal(
-      "Usage: acp job create <agentWalletAddress> <jobOfferingName> [--requirements '<json>']"
+      "Usage: acp job create <agentWalletAddress> <jobOfferingName> [--requirements '<json>'] [--subscription '<subscriptionTier>']"
     );
+  }
+
+  const subscriptionRequired = preferredSubscriptionTier != null;
+
+  if (subscriptionRequired) {
+    output.log(`\n  Subscription tier: ${preferredSubscriptionTier}`);
   }
 
   try {
@@ -26,11 +33,15 @@ export async function create(
       providerWalletAddress: agentWalletAddress,
       jobOfferingName,
       serviceRequirements,
+      ...(preferredSubscriptionTier != null && { preferredSubscriptionTier }),
     });
 
     output.output(job.data, (data) => {
       output.heading("Job Created");
       output.field("Job ID", data.data?.jobId ?? data.jobId);
+      if (subscriptionRequired) {
+        output.field("Subscription Tier", preferredSubscriptionTier);
+      }
       output.log(
         "\n  Job submitted. Use `acp job status <jobId>` to check progress.\n"
       );
