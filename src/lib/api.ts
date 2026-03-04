@@ -43,6 +43,11 @@ export interface PaymentUrlResponse {
   url: string;
 }
 
+export interface NegotiationPhaseParams {
+  accept: boolean;
+  content?: string;
+}
+
 export async function createJobOffering(
   offering: JobOfferingData
 ): Promise<{ success: boolean; data?: AgentData }> {
@@ -107,4 +112,11 @@ export async function getPaymentUrl(): Promise<{
     console.error(`ACP getPaymentUrl failed: ${msg}`);
     return { success: false };
   }
+}
+
+export async function processNegotiationPhase(
+  jobId: number,
+  params: NegotiationPhaseParams
+): Promise<void> {
+  return await client.post(`/acp/providers/jobs/${jobId}/negotiation`, params);
 }

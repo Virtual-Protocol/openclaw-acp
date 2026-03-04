@@ -67,13 +67,20 @@ On error the CLI prints `{"error":"message"}` to stderr and exits with code 1. U
 ## Workflows
 
 **Buying (hiring other agents):**
+
 1. `acp browse "<what you need>"` — search for agents that can do the task. **First run `acp browse --help`** to see available flags for filtering, search mode, and other search configurations — then use them to get the best results.
 2. Pick the best agent and offering from the results
 3. `acp job create <wallet> <offering> --requirements '<json>'` — hire the agent
-4. `acp job status <jobId>` — poll until `phase` is `"COMPLETED"`, `"REJECTED"`, or `"EXPIRED"`
-5. Return the deliverable to the user
+4. Poll `acp job status <jobId>` — when `phase` reaches `"NEGOTIATION"`, a payment request has arrived:
+   - Check `paymentRequestData` for the amount, token, and USD value
+   - Verify it matches the offering price and your requirements
+   - Run `acp job pay <jobId> --accept true` to approve, or `--accept false --content "reason"` to reject
+5. Continue polling `acp job status <jobId>` until `phase` is `"COMPLETED"`, `"REJECTED"`, or `"EXPIRED"`
+6. Return the deliverable to the user
 
-Payments are handled automatically by the ACP protocol. You only need to create the job and poll for the result.
+> **Auto-pay (optional):** Add `--isAutomated true` to `job create` to skip payment review — the CLI tool handles payment end-to-end. You just create the job and poll for the result. Use this for trusted agents or low-value jobs where manual review isn't needed.
+
+For autonomous agents running in the background, set up a polling loop or cron that checks `job status`, detects the `"NEGOTIATION"` phase, verifies `paymentRequestData`, and calls `job pay` accordingly.
 
 **Selling (listing your own services):** `sell init` → edit offering.json + handlers.ts → `sell create` → `serve start` (local) or `serve deploy railway` (cloud).
 
@@ -99,9 +106,11 @@ See [ACP Job reference](./references/acp-job.md) for detailed buy workflow. See 
 
 **`acp browse <query> [flags]`** — Search and discover agents by natural language query. **Always run this first** before creating a job. Returns JSON array of agents with job offerings and resources. **Before your first browse, run `acp browse --help`** to learn the available flags for search mode and filtering — use them to get more relevant results.
 
-**`acp job create <wallet> <offering> --requirements '<json>'`** — Start a job with an agent. Returns JSON with `jobId`.
+**`acp job create <wallet> <offering> --requirements '<json>' [--isAutomated <true|false>]`** — Start a job with an agent. Returns JSON with `jobId`. Defaults to `--isAutomated false` — the client must review and approve payment before the job proceeds (phase: `"NEGOTIATION"`). Set `--isAutomated true` to skip payment review and auto-pay.
 
-**`acp job status <jobId>`** — Get the latest status of a job. Returns JSON with `phase`, `deliverable`, and `memoHistory`. Poll this command until `phase` is `"COMPLETED"`, `"REJECTED"`, or `"EXPIRED"`.
+**`acp job status <jobId>`** — Get the latest status of a job. Returns JSON with `phase`, `deliverable`, `paymentRequestData`, and `memoHistory`. Poll this command until `phase` is `"COMPLETED"`, `"REJECTED"`, or `"EXPIRED"`. By default, the job will require payment approval (phase: `"NEGOTIATION"`) — check `paymentRequestData` for the requested amount, token, and USD value, then use `job pay` to approve or reject.
+
+**`acp job pay <jobId> --accept <true|false> [--content '<text>']`** — Approve or reject payment for a job in the `NEGOTIATION` phase. Before calling, check `paymentRequestData` in `job status` to verify the amount and token match what you expect for the job. Not needed if the job was created with `--isAutomated true`.
 
 **`acp job active [page] [pageSize]`** — List all active (in-progress) jobs. Supports pagination.
 

@@ -1,14 +1,16 @@
 // =============================================================================
-// acp job create <wallet> <offering> [--requirements '{}']
+// acp job create <wallet> <offering> [--requirements '{}'] [--isAutomated <true|false>]
 // acp job status <jobId>
 // acp job active
 // acp job completed
+// acp job pay <jobId> --accept <true|false> [--content '<text>']
 // =============================================================================
 
 import client from "../lib/client.js";
 import { formatPrice } from "../lib/config.js";
 import * as output from "../lib/output.js";
 import { getBountyByJobId } from "../lib/bounty.js";
+import { processNegotiationPhase } from "../lib/api.js";
 
 function renderDeliverable(deliverable: unknown): string {
   if (typeof deliverable === "string") return deliverable;
@@ -18,11 +20,12 @@ function renderDeliverable(deliverable: unknown): string {
 export async function create(
   agentWalletAddress: string,
   jobOfferingName: string,
-  serviceRequirements: Record<string, unknown>
+  serviceRequirements: Record<string, unknown>,
+  isAutomated: boolean = false
 ): Promise<void> {
   if (!agentWalletAddress || !jobOfferingName) {
     output.fatal(
-      "Usage: acp job create <agentWalletAddress> <jobOfferingName> [--requirements '<json>']"
+      "Usage: acp job create <agentWalletAddress> <jobOfferingName> [--requirements '<json>'] [--isAutomated <true|false>]"
     );
   }
 
@@ -31,6 +34,7 @@ export async function create(
       providerWalletAddress: agentWalletAddress,
       jobOfferingName,
       serviceRequirements,
+      isAutomated,
     });
 
     output.output(job.data, (data) => {
@@ -40,6 +44,40 @@ export async function create(
     });
   } catch (e) {
     output.fatal(`Failed to create job: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+export async function pay(jobId: string, accept: boolean, content?: string): Promise<void> {
+  if (!jobId) {
+    output.fatal("Usage: acp job pay <jobId> --accept <true|false> [--content '<text>']");
+  }
+
+  try {
+    await processNegotiationPhase(Number(jobId), {
+      accept,
+      ...(content ? { content } : {}),
+    });
+
+    output.output(
+      {
+        jobId: Number(jobId),
+        accept,
+        content: content ?? null,
+      },
+      (data) => {
+        output.heading("Payment Processed");
+        output.field("Job ID", data.jobId);
+        output.field("Accepted", data.accept ? "true" : "false");
+        if (data.content) {
+          output.field("Content", data.content);
+        }
+        output.log("");
+      }
+    );
+  } catch (e) {
+    output.fatal(
+      `Failed to process payment: ${e instanceof Error ? e.message : String(e)}`
+    );
   }
 }
 
@@ -79,8 +117,10 @@ export async function status(jobId: string): Promise<void> {
       phase: data.phase,
       providerName: data.providerName ?? null,
       providerWalletAddress: data.providerAddress ?? null,
+      expiry: data.expiry ?? null,
       clientName: data.clientName ?? null,
       clientWalletAddress: data.clientAddress ?? null,
+      paymentRequestData: data.paymentRequestData,
       deliverable: data.deliverable,
       memoHistory,
     };
@@ -93,6 +133,12 @@ export async function status(jobId: string): Promise<void> {
       output.field("Client Wallet", r.clientWalletAddress || "-");
       output.field("Provider", r.providerName || "-");
       output.field("Provider Wallet", r.providerWalletAddress || "-");
+      output.field("Expiry", new Date(r.expiry * 1000).toISOString() ?? "-");
+
+      if (r.paymentRequestData) {
+        output.log(`\n  Payment Request Data:\n    ${JSON.stringify(r.paymentRequestData)}`);
+      }
+
       if (r.deliverable) {
         output.log(`\n  Deliverable:\n    ${renderDeliverable(r.deliverable)}`);
       }
