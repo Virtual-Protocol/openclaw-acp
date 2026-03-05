@@ -1,7 +1,7 @@
 {
-  "name": "ops_recovery_hotfix_openrouter_v1",
-  "description": "timeout | validation | rejected | retry payload\n입력 1줄 -> 복구결과 3종(원인 분류, retry payload, 실행 next actions)으로 바로 반환합니다. 0.02 진입 티어이며 결과에 recommended_next_tier( none|turbo|guardrail )를 포함합니다.",
-  "jobFee": 0.02,
+  "name": "ops_recovery_turbo_v1",
+  "description": "timeout | validation | rejected | retry payload\n입력 1줄 -> 복구결과 3종(원인 분류, retry payload, 실행 next actions) + turbo 우선 복구 루트와 즉시 재시도 메시지를 제공합니다. 0.05 업셀 티어입니다.",
+  "jobFee": 0.05,
   "jobFeeType": "fixed",
   "deliverable": "json",
   "requiredFunds": false,

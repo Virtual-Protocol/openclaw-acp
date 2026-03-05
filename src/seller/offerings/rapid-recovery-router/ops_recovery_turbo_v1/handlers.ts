@@ -7,7 +7,7 @@ import {
   validateRecoveryRequest,
 } from "../../../runtime/recoveryRouterOfferings.js";
 
-const OFFERING_NAME = "ops_recovery_hotfix_openrouter_v1";
+const OFFERING_NAME = "ops_recovery_turbo_v1";
 
 export async function executeJob(request: any): Promise<ExecuteJobResult> {
   const input = normalizeRecoveryRequest(request);
@@ -17,10 +17,9 @@ export async function executeJob(request: any): Promise<ExecuteJobResult> {
   return {
     deliverable: buildRecoveryDeliverable({
       offering: OFFERING_NAME,
-      tier: "hotfix",
+      tier: "turbo",
       input,
       recovery: recoveryPack,
-      includeRecommendedNextTier: true,
     }),
   };
 }
@@ -30,5 +29,5 @@ export function validateRequirements(request: any): ValidationResult {
 }
 
 export function requestPayment(): string {
-  return "Ops recovery request accepted. Generating retry-safe hotfix pack now.";
+  return "Turbo recovery request accepted. Returning fast retry pack with escalation path.";
 }

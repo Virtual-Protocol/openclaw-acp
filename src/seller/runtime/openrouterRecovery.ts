@@ -6,7 +6,6 @@ export interface RecoveryPackInput {
   target_system?: string;
   persona_mode?: string;
   buyer_goal?: string;
-  model_override?: string;
 }
 
 export interface RecoveryPack {
@@ -28,7 +27,7 @@ export interface RecoveryPack {
 type OpenRouterEnv = Record<string, string | undefined>;
 
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const DEFAULT_OPENROUTER_FREE_MODEL = "meta-llama/llama-3.1-8b-instruct:free";
+const DEFAULT_OPENROUTER_FREE_MODEL = "openrouter/free";
 
 function cleanText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -106,16 +105,20 @@ export function fallbackRecoveryPack(input: RecoveryPackInput): RecoveryPack {
   };
 }
 
+export function isFreeModelId(modelId: string): boolean {
+  const model = cleanText(modelId).toLowerCase();
+  if (!model) return false;
+  return model === "openrouter/free" || model.endsWith(":free");
+}
+
 export function resolveOpenRouterModel(
   env: OpenRouterEnv = process.env,
   modelOverride?: string
 ): string {
   const override = cleanText(modelOverride);
-  if (override) return override;
-  const direct = cleanText(env.OPENROUTER_MODEL);
-  if (direct) return direct;
+  if (isFreeModelId(override)) return override;
   const freeModel = cleanText(env.OPENROUTER_FREE_MODEL);
-  if (freeModel) return freeModel;
+  if (isFreeModelId(freeModel)) return freeModel;
   return DEFAULT_OPENROUTER_FREE_MODEL;
 }
 
@@ -204,7 +207,7 @@ export async function buildRecoveryPack(input: RecoveryPackInput): Promise<Recov
 
   if (!apiKey) return fallback;
 
-  const model = resolveOpenRouterModel(env, input.model_override);
+  const model = resolveOpenRouterModel(env);
   const baseUrl = resolveOpenRouterBaseUrl(env);
   const endpoint = `${baseUrl}/chat/completions`;
 
@@ -269,6 +272,7 @@ export async function buildRecoveryPack(input: RecoveryPackInput): Promise<Recov
 
 export const __testables = {
   fallbackRecoveryPack,
+  isFreeModelId,
   resolveOpenRouterModel,
   extractFirstJsonObject,
 };

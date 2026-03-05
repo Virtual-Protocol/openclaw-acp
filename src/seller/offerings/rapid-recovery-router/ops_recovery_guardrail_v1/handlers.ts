@@ -7,28 +7,40 @@ import {
   validateRecoveryRequest,
 } from "../../../runtime/recoveryRouterOfferings.js";
 
-const OFFERING_NAME = "ops_recovery_hotfix_openrouter_v1";
+const OFFERING_NAME = "ops_recovery_guardrail_v1";
 
 export async function executeJob(request: any): Promise<ExecuteJobResult> {
   const input = normalizeRecoveryRequest(request);
-  const recoveryInput = toRecoveryPackInput(input);
+  const recoveryInput = toRecoveryPackInput({
+    ...input,
+    // Guardrail tier focuses on deterministic recovery and incident context.
+    persona_mode: "completion",
+  });
   const recoveryPack = await buildRecoveryPack(recoveryInput);
+
+  const enrichedInput = {
+    ...input,
+    persona_mode: "completion",
+  };
 
   return {
     deliverable: buildRecoveryDeliverable({
       offering: OFFERING_NAME,
-      tier: "hotfix",
-      input,
+      tier: "guardrail",
+      input: enrichedInput,
       recovery: recoveryPack,
-      includeRecommendedNextTier: true,
+      forcedNextTier: "none",
     }),
   };
 }
 
 export function validateRequirements(request: any): ValidationResult {
-  return validateRecoveryRequest(request, { allowPersonaMode: true });
+  return validateRecoveryRequest(request, {
+    requireIncidentContext: true,
+    allowPersonaMode: false,
+  });
 }
 
 export function requestPayment(): string {
-  return "Ops recovery request accepted. Generating retry-safe hotfix pack now.";
+  return "Guardrail recovery request accepted. Returning incident-safe remediation plan now.";
 }

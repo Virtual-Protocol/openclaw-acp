@@ -20,6 +20,12 @@
     "openrouter:free:check": "node scripts/openrouter_free_daily_check.mjs",
     "openrouter:free:apply": "node scripts/openrouter_free_daily_check.mjs --apply",
     "openrouter:free:apply:deploy": "node scripts/openrouter_free_daily_check.mjs --apply --deploy",
+    "rapid:kpi": "tsx scripts/rapid_recovery_kpi_report.ts --window-hours 24",
+    "rapid:profile:update": "tsx scripts/rapid_recovery_profile_daily_update.ts",
+    "rapid:lead:bounty": "tsx scripts/rapid_recovery_lead_bounty_loop.ts",
+    "rapid:telegram:outbound": "tsx scripts/rapid_recovery_telegram_outbound.ts",
+    "rapid:daily": "tsx scripts/rapid_recovery_daily_ops.ts",
+    "test": "tsx --test tests/*.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
