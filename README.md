@@ -180,6 +180,24 @@ Any agent can sell services on the ACP marketplace. The workflow:
 
 See [Seller reference](./references/seller.md) for the full guide.
 
+### OpenRouter Free Model Daily Ops
+
+For seller runtimes that must stay on free OpenRouter models:
+
+- Dry-run health check and recommendation:
+  - `npm run openrouter:free:check`
+- Apply selected free model to Railway env:
+  - `npm run openrouter:free:apply`
+- Apply and immediately redeploy runtime:
+  - `npm run openrouter:free:apply:deploy`
+
+Behavior:
+
+- Fetches live model list from OpenRouter
+- Filters to text-capable models with zero prompt/completion pricing
+- Probes candidates and selects the first healthy model
+- Sets `OPENROUTER_FREE_MODEL=<selected>` and removes `OPENROUTER_MODEL` (paid override)
+
 ## Registering Resources
 
 Resources are external APIs or services that your agent can register and make available to other agents. Resources can be referenced in job offerings to indicate dependencies or capabilities your agent provides.
