@@ -1100,3 +1100,103 @@ export async function cleanup(bountyId: string): Promise<void> {
   }
   output.log(`  Cleaned up bounty ${bountyId}\n`);
 }
+
+// =============================================================================
+// acp bounty get <bountyId>
+// =============================================================================
+
+export async function get(bountyId: string): Promise<void> {
+  if (!bountyId) output.fatal("Usage: acp bounty get <bountyId>");
+  
+  const details = await getBountyDetails(bountyId);
+  
+  output.output(
+    {
+      bountyId,
+      status: details.status,
+      title: details.title,
+      description: details.description,
+      budget: details.budget,
+      category: details.category,
+      tags: details.tags,
+      posterName: details.poster_name,
+      createdAt: details.created_at,
+      ...(details.expires_at ? { expiresAt: details.expires_at } : {}),
+    },
+    (data) => {
+      output.heading(`Bounty ${data.bountyId}`);
+      output.field("Status", data.status);
+      output.field("Title", data.title);
+      output.field("Description", data.description);
+      output.field("Budget", `${data.budget} USDC`);
+      output.field("Category", data.category);
+      output.field("Tags", data.tags);
+      if (data.posterName) output.field("Posted by", data.posterName);
+      if (data.createdAt) output.field("Created", data.createdAt);
+      if (data.expiresAt) output.field("Expires", data.expiresAt);
+      output.log("");
+    }
+  );
+}
+
+// =============================================================================
+// acp bounty search <query>
+// =============================================================================
+
+export interface BountySearchFlags {
+  status?: string;
+  category?: string;
+  minBudget?: number;
+  maxBudget?: number;
+  limit?: number;
+}
+
+export async function search(query: string, flags?: BountySearchFlags): Promise<void> {
+  if (!query) output.fatal("Usage: acp bounty search <query>");
+  
+  const { searchBounties } = await import("../lib/bounty.js");
+  const result = await searchBounties(query, {
+    status: flags?.status,
+    category: flags?.category,
+    minBudget: flags?.minBudget,
+    maxBudget: flags?.maxBudget,
+    limit: flags?.limit ?? 20,
+  });
+  
+  const bounties = result.data || [];
+  const meta = result.meta || {};
+  
+  output.output(
+    {
+      query,
+      total: meta.total ?? bounties.length,
+      bounties: bounties.map((b: any) => ({
+        id: b.id,
+        title: b.title,
+        status: b.status,
+        budget: b.budget,
+        category: b.category,
+        tags: b.tags,
+        posterName: b.poster_name,
+      })),
+    },
+    (data) => {
+      output.heading(`Search: "${data.query}"`);
+      output.field("Total results", data.total);
+      output.log("");
+      if (data.bounties.length === 0) {
+        output.log("  No bounties found.\n");
+        return;
+      }
+      for (const b of data.bounties) {
+        output.field("ID", b.id);
+        output.field("Title", b.title);
+        output.field("Status", b.status);
+        output.field("Budget", `${b.budget} USDC`);
+        output.field("Category", b.category);
+        if (b.tags) output.field("Tags", b.tags);
+        output.log("");
+      }
+    }
+  );
+}

@@ -323,6 +323,13 @@ function buildCommandHelp(command: string): string | undefined {
         "",
         cmd("cancel <bounty-id>", "Cancel a bounty (soft delete)"),
         cmd("cleanup <bounty-id>", "Remove local bounty state"),
+        cmd("get <bounty-id>", "Get any bounty details from server (not just local)"),
+        cmd("search <query>", "Search bounties by title/description/tags"),
+        flag("--status <status>", "Filter by status (open, pending_match, claimed, etc.)"),
+        flag("--category <category>", "Filter by category"),
+        flag("--min-budget <number>", "Minimum budget filter"),
+        flag("--max-budget <number>", "Maximum budget filter"),
+        flag("--limit <number>", "Max results (default: 20)"),
         "",
       ].join("\n"),
 
@@ -736,6 +743,22 @@ async function main(): Promise<void> {
       if (subcommand === "select") return bounty.select(rest[0]);
       if (subcommand === "cancel") return bounty.cancel(rest[0]);
       if (subcommand === "cleanup") return bounty.cleanup(rest[0]);
+      if (subcommand === "get") return bounty.get(rest[0]);
+      if (subcommand === "search") {
+        const searchQuery = rest.filter((a) => a != null && !String(a).startsWith("--")).join(" ");
+        const searchStatus = getFlagValue(rest, "--status");
+        const searchCategory = getFlagValue(rest, "--category");
+        const searchMinBudget = getFlagValue(rest, "--min-budget");
+        const searchMaxBudget = getFlagValue(rest, "--max-budget");
+        const searchLimit = getFlagValue(rest, "--limit");
+        return bounty.search(searchQuery, {
+          status: searchStatus,
+          category: searchCategory,
+          minBudget: searchMinBudget != null ? Number(searchMinBudget) : undefined,
+          maxBudget: searchMaxBudget != null ? Number(searchMaxBudget) : undefined,
+          limit: searchLimit != null ? Number(searchLimit) : undefined,
+        });
+      }
       console.log(buildCommandHelp("bounty"));
       return;
     }
