@@ -41,12 +41,21 @@ export type ValidationResult = boolean | { valid: boolean; reason?: string };
  */
 export interface OfferingHandlers {
   executeJob: (request: Record<string, any>) => Promise<ExecuteJobResult>;
-  validateRequirements?: (request: Record<string, any>) => ValidationResult;
-  requestPayment?: (request: Record<string, any>) => string;
-  requestAdditionalFunds?: (request: Record<string, any>) => {
-    content?: string;
-    amount: number;
-    tokenAddress: string;
-    recipient: string;
-  };
+  validateRequirements?: (
+    request: Record<string, any>
+  ) => ValidationResult | Promise<ValidationResult>;
+  requestPayment?: (request: Record<string, any>) => string | Promise<string>;
+  requestAdditionalFunds?: (request: Record<string, any>) =>
+    | {
+        content?: string;
+        amount: number;
+        tokenAddress: string;
+        recipient: string;
+      }
+    | Promise<{
+        content?: string;
+        amount: number;
+        tokenAddress: string;
+        recipient: string;
+      }>;
 }

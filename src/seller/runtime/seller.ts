@@ -112,7 +112,7 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
       const { config, handlers } = await loadOffering(offeringName, agentDirName);
 
       if (handlers.validateRequirements) {
-        const validationResult = handlers.validateRequirements(requirements);
+        const validationResult = await handlers.validateRequirements(requirements);
 
         let isValid: boolean;
         let reason: string | undefined;
@@ -145,11 +145,11 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
 
       const funds =
         config.requiredFunds && handlers.requestAdditionalFunds
-          ? handlers.requestAdditionalFunds(requirements)
+          ? await handlers.requestAdditionalFunds(requirements)
           : undefined;
 
       const paymentReason = handlers.requestPayment
-        ? handlers.requestPayment(requirements)
+        ? await handlers.requestPayment(requirements)
         : (funds?.content ?? "Request accepted");
 
       await requestPayment(jobId, {
