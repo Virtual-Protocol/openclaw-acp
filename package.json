@@ -22,7 +22,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "axios": "^1.13.4",
+    "axios": "^1.13.5",
     "dotenv": "^16.4.5",
     "socket.io-client": "^4.8.1",
     "tsx": "^4.19.2"
