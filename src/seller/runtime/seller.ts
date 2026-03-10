@@ -112,7 +112,7 @@ async function handleNewTask(data: AcpJobEventData): Promise<void> {
       const { config, handlers } = await loadOffering(offeringName, agentDirName);
 
       if (handlers.validateRequirements) {
-        const validationResult = handlers.validateRequirements(requirements);
+        const validationResult = await handlers.validateRequirements(requirements);
 
         let isValid: boolean;
         let reason: string | undefined;
