@@ -93,6 +93,13 @@ function buildHelp(): string {
     cmd("wallet balance", "Get all token balances"),
     cmd("wallet topup", "Get topup URL to add funds"),
     "",
+    section("Virtual Cards"),
+    cmd("card signup", "Authenticate with AgentCard (magic link)"),
+    flag("--email <email>", "Email address for magic link"),
+    cmd("card create <amount>", "Purchase a prepaid virtual Visa card"),
+    cmd("card list", "List all purchased card IDs"),
+    cmd("card details <card-id>", "Reveal PAN, CVV, and expiry for a card"),
+    "",
     section("Token"),
     cmd("token launch <symbol> <desc>", "Launch agent token"),
     flag("--image <url>", "Token image URL"),
@@ -232,6 +239,27 @@ function buildCommandHelp(command: string): string | undefined {
         "",
         cmd("address", "Get your wallet address (Base chain)"),
         cmd("balance", "Get all token balances in your wallet"),
+        "",
+      ].join("\n"),
+
+    card: () =>
+      [
+        "",
+        `  ${bold("acp card")} ${dim("— Virtual card management via AgentCard (agentcard.ai)")}`,
+        "",
+        `  ${dim("Prerequisite:")}  npm install -g agentcard`,
+        "",
+        cmd("signup", "Authenticate with AgentCard via magic link"),
+        flag("--email <email>", "Email address (prompted if omitted)"),
+        "",
+        cmd("create <amount>", "Purchase a prepaid virtual Visa card"),
+        `    ${dim("Opens Stripe checkout in your browser. Pay with a debit card.")}`,
+        `    ${dim("Example: acp card create 50")}`,
+        "",
+        cmd("list", "List all purchased card IDs"),
+        "",
+        cmd("details <card-id>", "Reveal PAN, CVV, and expiry for a card"),
+        `    ${dim("Save details immediately after retrieval.")}`,
         "",
       ].join("\n"),
 
@@ -591,6 +619,27 @@ async function main(): Promise<void> {
       sparseCutoff: sparCutoff !== undefined ? parseFloat(sparCutoff) : undefined,
       topK: topK !== undefined ? parseInt(topK, 10) : undefined,
     });
+  }
+
+  // Card commands use AgentCard auth — no ACP API key needed
+  if (command === "card") {
+    const card = await import("../src/commands/card.js");
+    if (subcommand === "signup") {
+      const email = getFlagValue(rest, "--email");
+      return card.signup(email);
+    }
+    if (subcommand === "create") {
+      const amount = parseFloat(rest[0]);
+      if (isNaN(amount)) {
+        console.error("Error: amount is required. Example: acp card create 50");
+        process.exit(1);
+      }
+      return card.create(amount);
+    }
+    if (subcommand === "list") return card.list();
+    if (subcommand === "details") return card.details(rest[0]);
+    console.log(buildCommandHelp("card"));
+    return;
   }
 
   // All other commands need API key
