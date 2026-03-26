@@ -96,9 +96,17 @@ function buildHelp(): string {
     section("Virtual Cards"),
     cmd("card signup", "Authenticate with AgentCard (magic link)"),
     flag("--email <email>", "Email address for magic link"),
-    cmd("card create <amount>", "Purchase a prepaid virtual Visa card"),
-    cmd("card list", "List all purchased card IDs"),
+    cmd("card logout", "Log out and clear saved credentials"),
+    cmd("card create <amount>", "Purchase a prepaid virtual Visa card ($20–$200)"),
+    cmd("card list", "List all purchased cards + pending requests"),
     cmd("card details <card-id>", "Reveal PAN, CVV, and expiry for a card"),
+    cmd("card balance <card-id>", "Show card denomination"),
+    cmd("card track", "Track an agent purchase"),
+    flag("--name <name>", "What was purchased (required)"),
+    flag("--amount <dollars>", "Purchase amount (required)"),
+    flag("--store <store>", "Website or store"),
+    flag("--incomplete", "Flag if purchase did not complete"),
+    flag("--intent <intent>", "What the agent was trying to accomplish"),
     "",
     section("Token"),
     cmd("token launch <symbol> <desc>", "Launch agent token"),
@@ -247,19 +255,28 @@ function buildCommandHelp(command: string): string | undefined {
         "",
         `  ${bold("acp card")} ${dim("— Virtual card management via AgentCard (agentcard.ai)")}`,
         "",
-        `  ${dim("Prerequisite:")}  npm install -g agentcard`,
-        "",
         cmd("signup", "Authenticate with AgentCard via magic link"),
         flag("--email <email>", "Email address (prompted if omitted)"),
+        "",
+        cmd("logout", "Log out and clear saved credentials"),
         "",
         cmd("create <amount>", "Purchase a prepaid virtual Visa card"),
         `    ${dim("Opens Stripe checkout in your browser. Pay with a debit card.")}`,
         `    ${dim("Example: acp card create 50")}`,
         "",
-        cmd("list", "List all purchased card IDs"),
+        cmd("list", "List all purchased cards + pending requests"),
         "",
         cmd("details <card-id>", "Reveal PAN, CVV, and expiry for a card"),
         `    ${dim("Save details immediately after retrieval.")}`,
+        "",
+        cmd("balance <card-id>", "Show card denomination"),
+        "",
+        cmd("track", "Track an agent purchase"),
+        flag("--name <name>", "What was purchased (required)"),
+        flag("--amount <dollars>", "Purchase amount in dollars (required)"),
+        flag("--store <store>", "Website or store where purchase was made"),
+        flag("--incomplete", "Flag if purchase did not complete"),
+        flag("--intent <intent>", "What the agent was trying to accomplish"),
         "",
       ].join("\n"),
 
@@ -628,6 +645,7 @@ async function main(): Promise<void> {
       const email = getFlagValue(rest, "--email");
       return card.signup(email);
     }
+    if (subcommand === "logout") return card.logout();
     if (subcommand === "create") {
       const amount = parseFloat(rest[0]);
       if (isNaN(amount)) {
@@ -638,6 +656,21 @@ async function main(): Promise<void> {
     }
     if (subcommand === "list") return card.list();
     if (subcommand === "details") return card.details(rest[0]);
+    if (subcommand === "balance") return card.balance(rest[0]);
+    if (subcommand === "track") {
+      const name = getFlagValue(rest, "--name");
+      const amountStr = getFlagValue(rest, "--amount");
+      const store = getFlagValue(rest, "--store");
+      const intent = getFlagValue(rest, "--intent");
+      const incomplete = rest.includes("--incomplete");
+      if (!name || !amountStr) {
+        console.error(
+          "Error: --name and --amount are required. Example: acp card track --name 'AWS credits' --amount 25"
+        );
+        process.exit(1);
+      }
+      return card.track({ name, amount: parseFloat(amountStr), store, intent, incomplete });
+    }
     console.log(buildCommandHelp("card"));
     return;
   }
