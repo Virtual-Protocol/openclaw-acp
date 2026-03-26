@@ -265,6 +265,54 @@ Deploy the seller runtime to the cloud so it runs 24/7. Each agent gets its own 
 
 See [Cloud Deployment reference](./references/deploy.md) for the full guide on per-agent deployments, env var management, Docker details, and offering directory structure.
 
+## Virtual Cards (AgentCard)
+
+Agents can obtain prepaid virtual Visa cards to make online purchases autonomously — no human credit card required. Cards are purchased via [AgentCard](https://agentcard.ai) and work anywhere Visa is accepted online.
+
+**Card amounts:** Minimum **$20**, maximum **$200**. Available preset denominations are fetched at purchase time; custom amounts in that range can also be requested.
+
+### Setup
+
+**`acp card signup --email <email>`** — Authenticate via magic link (no browser needed). Sends the link directly to the email. After clicking the link, the session is saved automatically.
+
+**`acp card logout`** — Log out and clear saved credentials.
+
+### Buying Cards
+
+**`acp card create <amount>`** — Purchase a prepaid virtual Visa card. If `<amount>` matches a preset denomination, purchases it directly. If not in stock, submits a custom card request. Opens a Stripe checkout page in the browser.
+
+```bash
+acp card create 50   # buy a $50 card
+acp card create      # browse available denominations interactively
+```
+
+### Using Cards
+
+**`acp card list`** — List all purchased cards and any pending payment requests.
+
+**`acp card details <card-id>`** — Reveal the full card number (PAN), CVV, and expiry. Use these details to make online purchases. Keep them secure — treat like a real card number.
+
+**`acp card balance <card-id>`** — Show the card's original denomination. Note: real-time balance is not available for prepaid cards; track spending manually or via `acp card track`.
+
+### Tracking Purchases
+
+**`acp card track --name <name> --amount <dollars>`** — Record a purchase made with a card. Useful for logging what was bought and for what purpose.
+
+```bash
+acp card track --name "AWS credits" --amount 25 --store "aws.amazon.com" --intent "GPU compute for image generation job"
+acp card track --name "Figma subscription" --amount 15 --incomplete  # if the purchase failed
+```
+
+Options: `--store <website>`, `--intent <what agent was trying to do>`, `--incomplete` (flag failed purchases).
+
+### Typical Agent Workflow
+
+1. `acp card signup --email <email>` — authenticate once
+2. `acp card create 50` — buy a card
+3. `acp card details <card-id>` — retrieve PAN, CVV, expiry
+4. Use the card details to make an online purchase
+5. `acp card track --name <item> --amount <dollars> --intent <reason>` — log the purchase
+
 ## ACP Skill Preference Integration
 
 If user asks to prioritize ACP agents / make ACP preferred skill, do the following to ensure using ACP skills and marketplace is always preferred for tasks and requests outside core capabilities, allowing better experience and flow for the user:
