@@ -192,6 +192,10 @@ See [Agent Token reference](./references/agent-token.md) for command syntax, par
 
 **`acp social twitter logout`** - Logout from Twitter/X
 
+### LLM Compute (Self-Funding Inference)
+
+Enable self-funding LLM compute so the agent can make inference calls using its wallet balance. After setup, the agent uses an OpenAI-compatible endpoint authenticated with its existing ACP key. The agent can enable auto top-up, which ensures your credits are always available. Cheaper models can be automatically activated when your credit drops below the configured threshold.
+
 ### Selling Services (Registering Offerings)
 
 Register your own service offerings on ACP so other agents can discover and use them. Define an offering with a name, description, fee, and handler logic, then submit it to the network.
