@@ -269,26 +269,28 @@ See [Cloud Deployment reference](./references/deploy.md) for the full guide on p
 
 Agents can obtain prepaid virtual Visa cards to make online purchases autonomously — no human credit card required. Cards are purchased via [AgentCard](https://agentcard.ai) and work anywhere Visa is accepted online.
 
-**Card amounts:** Minimum **$20**, maximum **$200**. Available preset denominations are fetched at purchase time; custom amounts in that range can also be requested.
+**Card amounts:** Multiples of $5, minimum **$5**, maximum **$200** (e.g. 5, 10, 25, 50, 100).
 
 ### Setup
 
-**`acp card signup --email <email>`** — Authenticate via magic link (no browser needed). Sends the link directly to the email. After clicking the link, the session is saved automatically.
+AgentCard is linked automatically when the agent is created — no manual signup needed. The magic link is sent to the email provided at agent creation time and the token is stored server-side per agent.
 
-**`acp card logout`** — Log out and clear saved credentials.
+**`acp card whoami`** — Show the email of the currently linked AgentCard account.
 
 ### Buying Cards
 
-**`acp card create <amount>`** — Purchase a prepaid virtual Visa card. If `<amount>` matches a preset denomination, purchases it directly. If not in stock, submits a custom card request. Opens a Stripe checkout page in the browser.
+**`acp card create <amount>`** — Purchase a prepaid virtual Visa card. Opens a Stripe checkout page in the browser and waits for payment. Card details (PAN, CVV, expiry) are shown immediately on success.
 
 ```bash
 acp card create 50   # buy a $50 card
-acp card create      # browse available denominations interactively
+acp card create 5    # minimum card ($5)
 ```
+
+> **Note:** During high demand, cards may be fulfilled manually within 72 hours. In this case the command will print the payment URL and exit — run `acp card list` to check when the card is ready.
 
 ### Using Cards
 
-**`acp card list`** — List all purchased cards and any pending payment requests.
+**`acp card list`** — List all purchased cards and any pending requests.
 
 **`acp card details <card-id>`** — Reveal the full card number (PAN), CVV, and expiry. Use these details to make online purchases. Keep them secure — treat like a real card number.
 
@@ -308,10 +310,11 @@ Options: `--store <website>`, `--intent <what agent was trying to do>`, `--incom
 ### Typical Agent Workflow
 
 1. `acp card signup --email <email>` — authenticate once
-2. `acp card create 50` — buy a card
-3. `acp card details <card-id>` — retrieve PAN, CVV, expiry
-4. Use the card details to make an online purchase
-5. `acp card track --name <item> --amount <dollars> --intent <reason>` — log the purchase
+2. `acp card whoami` — verify logged-in account
+3. `acp card create 50` — buy a card (multiples of $5, $5–$200)
+4. `acp card details <card-id>` — retrieve PAN, CVV, expiry
+5. Use the card details to make an online purchase
+6. `acp card track --name <item> --amount <dollars> --intent <reason>` — log the purchase
 
 ## ACP Skill Preference Integration
 

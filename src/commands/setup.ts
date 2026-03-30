@@ -121,8 +121,12 @@ async function selectOrCreateAgent(rl: readline.Interface, sessionToken: string)
     return;
   }
 
+  const cardEmail = (
+    await question(rl, "  Email for virtual card (AgentCard, optional — Enter to skip): ")
+  ).trim();
+
   try {
-    const result = await createAgentApi(sessionToken, agentName);
+    const result = await createAgentApi(sessionToken, agentName, cardEmail || undefined);
     if (!result?.apiKey) {
       output.error("Create agent failed — no API key returned.");
       return;
@@ -161,6 +165,21 @@ async function selectOrCreateAgent(rl: readline.Interface, sessionToken: string)
     output.success(`Agent created: ${newAgent.name}`);
     output.log(`    Wallet:  ${newAgent.walletAddress}`);
     output.log(`    API key: ${redactApiKey(newAgent.apiKey)} (saved to config.json)\n`);
+
+    // If cardEmail was provided, poll for magic link completion
+    if (cardEmail && result.card) {
+      output.log(`  AgentCard magic link sent to ${cardEmail}.\n`);
+      output.log("  Click the link in your email to link your virtual card account.\n");
+      output.log("  Waiting for you to click the link...\n");
+
+      const { pollCardSignup } = await import("./card.js");
+      const linked = await pollCardSignup(result.apiKey, result.card.state);
+      if (linked) {
+        output.success(`Virtual card account linked (${linked.email}).\n`);
+      } else {
+        output.warn("Card link timed out. Run `acp card whoami` to check status later.\n");
+      }
+    }
   } catch (e) {
     output.error(`Create agent failed: ${e instanceof Error ? e.message : String(e)}`);
   }

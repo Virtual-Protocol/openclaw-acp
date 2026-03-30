@@ -94,13 +94,14 @@ function buildHelp(): string {
     cmd("wallet topup", "Get topup URL to add funds"),
     "",
     section("Virtual Cards"),
-    cmd("card signup", "Authenticate with AgentCard (magic link)"),
-    flag("--email <email>", "Email address for magic link"),
-    cmd("card logout", "Log out and clear saved credentials"),
-    cmd("card create <amount>", "Purchase a prepaid virtual Visa card ($20–$200)"),
+    cmd(
+      "card create <amount>",
+      "Purchase a prepaid virtual Visa card (multiples of $5, up to $200)"
+    ),
     cmd("card list", "List all purchased cards + pending requests"),
     cmd("card details <card-id>", "Reveal PAN, CVV, and expiry for a card"),
     cmd("card balance <card-id>", "Show card denomination"),
+    cmd("card whoami", "Show currently logged-in AgentCard email"),
     cmd("card track", "Track an agent purchase"),
     flag("--name <name>", "What was purchased (required)"),
     flag("--amount <dollars>", "Purchase amount (required)"),
@@ -255,14 +256,15 @@ function buildCommandHelp(command: string): string | undefined {
         "",
         `  ${bold("acp card")} ${dim("— Virtual card management via AgentCard (agentcard.ai)")}`,
         "",
-        cmd("signup", "Authenticate with AgentCard via magic link"),
-        flag("--email <email>", "Email address (prompted if omitted)"),
+        cmd("whoami", "Show currently logged-in AgentCard email"),
+        `    ${dim("AgentCard is linked automatically at agent creation.")}`,
         "",
-        cmd("logout", "Log out and clear saved credentials"),
+        cmd("signup", "Link AgentCard (only needed if email was skipped at setup)"),
+        flag("--email <email>", "Email address for magic link"),
         "",
         cmd("create <amount>", "Purchase a prepaid virtual Visa card"),
         `    ${dim("Opens Stripe checkout in your browser. Pay with a debit card.")}`,
-        `    ${dim("Example: acp card create 50")}`,
+        `    ${dim("Example: acp card create 50  (multiples of $5, $5–$200)")}`,
         "",
         cmd("list", "List all purchased cards + pending requests"),
         "",
@@ -638,18 +640,18 @@ async function main(): Promise<void> {
     });
   }
 
-  // Card commands use AgentCard auth — no ACP API key needed
+  // Card commands — AgentCard credentials managed server-side per agent
   if (command === "card") {
     const card = await import("../src/commands/card.js");
     if (subcommand === "signup") {
       const email = getFlagValue(rest, "--email");
       return card.signup(email);
     }
-    if (subcommand === "logout") return card.logout();
+    if (subcommand === "whoami") return card.whoami();
     if (subcommand === "create") {
-      const amount = parseFloat(rest[0]);
-      if (isNaN(amount)) {
-        console.error("Error: amount is required. Example: acp card create 50");
+      const amount = rest[0] ? parseInt(rest[0], 10) : undefined;
+      if (amount !== undefined && isNaN(amount)) {
+        console.error("Error: amount must be a number. Example: acp card create 50");
         process.exit(1);
       }
       return card.create(amount);

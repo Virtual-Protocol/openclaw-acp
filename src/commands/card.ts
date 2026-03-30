@@ -1,11 +1,12 @@
 // =============================================================================
 // acp card — Virtual card management via AgentCard (agentcard.ai)
 //
-// All commands call the AgentCard REST API directly using the token stored at
-// ~/.agentcard/config.json — no global `agentcard` CLI install required.
+// All commands proxy through acp-be using the agent's API key + documentId.
+// The agentcard token is stored server-side — no local agentcard credentials.
 //
 // acp card signup [--email <email>]        Authenticate with AgentCard (magic link)
 // acp card logout                          Log out and clear saved credentials
+// acp card whoami                          Show logged-in AgentCard email
 // acp card create <amount>                 Purchase a prepaid virtual card via Stripe
 // acp card list                            List all purchased cards + pending requests
 // acp card details <card-id>               Get PAN, CVV, expiry as structured data
@@ -14,62 +15,43 @@
 // =============================================================================
 
 import { createInterface } from "readline";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
-import { randomUUID } from "crypto";
-import { homedir } from "os";
-import { join } from "path";
 import { spawnSync } from "child_process";
 import * as output from "../lib/output.js";
+import { readConfig } from "../lib/config.js";
 
-const AGENTCARD_API = process.env.AGENTCARD_API_URL ?? "https://agentcard.ai";
-const AGENTCARD_CONFIG_DIR = join(homedir(), ".agentcard");
-const AGENTCARD_CONFIG = join(AGENTCARD_CONFIG_DIR, "config.json");
+const ACP_API = process.env.ACP_API_URL || "https://claw-api.virtuals.io";
 
-// -- Config helpers --
+// -- Auth + agent helpers --
 
-function loadConfig(): { token?: string; email?: string } {
-  if (!existsSync(AGENTCARD_CONFIG)) return {};
-  try {
-    return JSON.parse(readFileSync(AGENTCARD_CONFIG, "utf-8"));
-  } catch {
-    return {};
+function getActiveAgent(): { apiKey: string } {
+  const config = readConfig();
+  const agent = config.agents?.find((a) => a.active);
+  if (!agent) {
+    output.fatal("No active agent. Run: acp setup");
   }
+  const apiKey = agent!.apiKey ?? config.LITE_AGENT_API_KEY;
+  if (!apiKey) {
+    output.fatal("No API key found. Run: acp setup");
+  }
+  return { apiKey: apiKey! };
 }
 
-function saveConfig(config: { token: string; email: string }): void {
-  if (!existsSync(AGENTCARD_CONFIG_DIR)) {
-    mkdirSync(AGENTCARD_CONFIG_DIR, { recursive: true });
-  }
-  writeFileSync(AGENTCARD_CONFIG, JSON.stringify(config, null, 2), { mode: 0o600 });
-}
-
-function getToken(): string {
-  const config = loadConfig();
-  if (!config.token) {
-    output.fatal("Not logged in to AgentCard. Run: acp card signup --email <your-email>");
-  }
-  return config.token!;
-}
-
-// -- HTTP helpers --
+// -- HTTP helper --
 
 async function apiFetch<T>(
   path: string,
-  options: { method?: string; body?: unknown; auth?: boolean } = {}
+  options: { method?: string; body?: unknown } = {}
 ): Promise<T> {
-  const { method = "GET", body, auth = true } = options;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (auth) {
-    headers["Authorization"] = `Bearer ${getToken()}`;
-  }
-  const res = await fetch(`${AGENTCARD_API}${path}`, {
+  const { apiKey } = getActiveAgent();
+  const { method = "GET", body } = options;
+  const res = await fetch(`${ACP_API}/acp/me/card${path}`, {
     method,
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+    },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 401) {
-    output.fatal("AgentCard session expired. Run: acp card signup --email <your-email>");
-  }
   if (!res.ok) {
     const text = await res.text();
     let message = text;
@@ -79,16 +61,59 @@ async function apiFetch<T>(
     } catch {}
     throw new Error(message);
   }
-  return res.json() as Promise<T>;
+  const json = (await res.json()) as Record<string, unknown>;
+  return (json.data ?? json) as T;
 }
 
-// -- Browser + prompt helpers --
+// -- Fetch with explicit apiKey (used during setup before active agent is saved) --
 
-function openBrowser(url: string): void {
-  if (process.platform === "darwin") spawnSync("open", [url]);
-  else if (process.platform === "win32") spawnSync("cmd", ["/c", "start", url]);
-  else spawnSync("xdg-open", [url]);
+async function apiFetchWithKey<T>(
+  apiKey: string,
+  path: string,
+  options: { method?: string; body?: unknown } = {}
+): Promise<T> {
+  const { method = "GET", body } = options;
+  const res = await fetch(`${ACP_API}/acp/me/card${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", "x-api-key": apiKey },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let message = text;
+    try {
+      const json = JSON.parse(text);
+      message = json.error ?? json.message ?? text;
+    } catch {}
+    throw new Error(message);
+  }
+  const json = (await res.json()) as Record<string, unknown>;
+  return (json.data ?? json) as T;
 }
+
+/**
+ * Poll for AgentCard magic link completion during agent creation setup.
+ * Called from setup.ts immediately after the agent is created.
+ */
+export async function pollCardSignup(
+  apiKey: string,
+  state: string
+): Promise<{ email: string } | null> {
+  const deadline = Date.now() + 5 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const res = await apiFetchWithKey<{ done: boolean; email?: string }>(
+        apiKey,
+        `/signup/poll?state=${state}`
+      );
+      if (res.done && res.email) return { email: res.email };
+    } catch {}
+  }
+  return null;
+}
+
+// -- Helpers --
 
 function promptLine(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -98,6 +123,12 @@ function promptLine(question: string): Promise<string> {
       resolve(answer.trim());
     });
   });
+}
+
+function openBrowser(url: string): void {
+  if (process.platform === "darwin") spawnSync("open", [url]);
+  else if (process.platform === "win32") spawnSync("cmd", ["/c", "start", url]);
+  else spawnSync("xdg-open", [url]);
 }
 
 async function poll<T>(
@@ -117,86 +148,60 @@ async function poll<T>(
 
 // -- Commands --
 
-/** acp card signup [--email <email>] */
+/** acp card signup [--email <email>] — only needed if email was skipped at setup */
 export async function signup(email?: string): Promise<void> {
-  if (!email) {
-    email = await promptLine("Email address: ");
-  }
-  if (!email) {
-    output.fatal("Email is required.");
-  }
-
-  const state = randomUUID();
-  const callbackURL = `${AGENTCARD_API}/auth/cli/callback?state=${state}`;
-
+  // Check if already linked
   try {
-    await apiFetch("/api/auth/cli/start", { method: "POST", body: { state }, auth: false });
-    await apiFetch("/api/auth/sign-in/magic-link", {
+    const res = await apiFetch<{ email: string }>("/whoami");
+    if (res.email) {
+      output.log(`  AgentCard already linked as ${res.email}.`);
+      output.log("  Run `acp card whoami` to confirm or `acp card create` to buy a card.\n");
+      return;
+    }
+  } catch {
+    // Not linked yet — proceed with signup
+  }
+
+  if (!email) {
+    email = await promptLine("  Email address for AgentCard: ");
+  }
+  if (!email) output.fatal("Email is required.");
+
+  let state: string;
+  try {
+    const res = await apiFetch<{ state: string }>("/signup", {
       method: "POST",
-      body: { email, callbackURL },
-      auth: false,
+      body: { email },
     });
+    state = res.state;
   } catch (e) {
     output.fatal(`Failed to send magic link: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   output.log(`\n  Magic link sent to ${email}. Click the link in your email.\n`);
+  output.log("  Waiting...\n");
 
-  const result = await poll<{ token: string; email: string }>(async () => {
-    const r = await apiFetch<{ status: string; token?: string; email?: string }>(
-      `/api/auth/cli/poll?state=${state}`,
-      { auth: false }
-    );
-    if (r.status === "complete" && r.token && r.email) {
-      return { token: r.token, email: r.email };
-    }
-    return null;
-  });
-
-  if (!result) {
-    output.fatal("Authentication timed out. Please try again.");
+  const { apiKey } = getActiveAgent();
+  const linked = await pollCardSignup(apiKey, state!);
+  if (linked) {
+    output.success(`AgentCard linked as ${linked.email}\n`);
+  } else {
+    output.fatal("Timed out waiting for magic link. Try again.");
   }
+}
 
-  saveConfig(result!);
-  output.success(`Logged in as ${result!.email}`);
-
-  // Show available denominations
+/** acp card whoami */
+export async function whoami(): Promise<void> {
   try {
-    const { denominations } = await apiFetch<{ denominations: { amountCents: number }[] }>(
-      "/api/cards/denominations"
-    );
-    if (denominations.length > 0) {
-      output.log("\n  Available card amounts:");
-      for (const d of denominations) {
-        output.log(`    $${(d.amountCents / 100).toFixed(2)}`);
-      }
-      output.log("\n  Run `acp card create <amount>` to purchase a card.\n");
-    }
-  } catch {}
-}
-
-/** acp card logout */
-export function logout(): void {
-  if (existsSync(AGENTCARD_CONFIG)) {
-    rmSync(AGENTCARD_CONFIG, { force: true });
+    const res = await apiFetch<{ email: string }>("/whoami");
+    output.log(res.email);
+  } catch (e) {
+    output.fatal(`Failed to get AgentCard email: ${e instanceof Error ? e.message : String(e)}`);
   }
-  output.success("Logged out of AgentCard.");
-}
-
-interface Denomination {
-  amountCents: number;
 }
 
 /** acp card create <amount> */
 export async function create(amount?: number): Promise<void> {
-  let denominations: Denomination[];
-  try {
-    const res = await apiFetch<{ denominations: Denomination[] }>("/api/cards/denominations");
-    denominations = res.denominations;
-  } catch (e) {
-    output.fatal(`Failed to fetch card options: ${e instanceof Error ? e.message : String(e)}`);
-  }
-
   let dollars: number;
 
   if (amount !== undefined) {
@@ -205,79 +210,53 @@ export async function create(amount?: number): Promise<void> {
     }
     dollars = amount;
   } else {
-    // Interactive denomination selection
-    if (denominations!.length === 0) {
-      output.log("  No preset cards available right now. Enter a custom amount ($20–$200).");
-      const raw = await promptLine("  Amount in dollars: ");
-      dollars = parseFloat(raw);
-    } else {
-      output.log("\n  Available card amounts:");
-      denominations!.forEach((d, i) => {
-        output.log(`    ${i + 1}. $${(d.amountCents / 100).toFixed(2)}`);
-      });
-      output.log(`    ${denominations!.length + 1}. Custom amount`);
-      const raw = await promptLine("\n  Select option: ");
-      const choice = parseInt(raw, 10);
-      if (choice === denominations!.length + 1) {
-        const custom = await promptLine("  Amount in dollars ($20–$200): ");
-        dollars = parseFloat(custom);
-      } else if (choice >= 1 && choice <= denominations!.length) {
-        dollars = denominations![choice - 1].amountCents / 100;
-      } else {
-        output.fatal("Invalid selection.");
-      }
-    }
+    const raw = await promptLine("  Amount in dollars (multiples of $5, up to $200): ");
+    dollars = parseInt(raw, 10);
+  }
+
+  if (isNaN(dollars!) || dollars! < 5 || dollars! > 200 || dollars! % 5 !== 0) {
+    output.fatal(
+      "Amount must be a multiple of $5 between $5 and $200. Example: acp card create 50"
+    );
   }
 
   const amountCents = Math.round(dollars! * 100);
-  const inStock = denominations!.some((d) => d.amountCents === amountCents);
 
-  if (!inStock) {
-    // Custom / out-of-stock — use request flow
-    if (dollars! < 20 || dollars! > 200) {
-      output.fatal("Custom card amounts must be between $20 and $200.");
-    }
-    output.log(
-      "\n  Note: Most cards are delivered quickly. During high demand, it may take up to 72 hours.\n"
-    );
-    let res: { url: string };
-    try {
-      res = await apiFetch<{ url: string }>("/api/cards/request", {
-        method: "POST",
-        body: { amountCents },
-      });
-    } catch (e) {
-      output.fatal(`Failed to create request: ${e instanceof Error ? e.message : String(e)}`);
-    }
-    output.log(`  Complete payment to request your $${dollars!.toFixed(2)} card:\n`);
-    output.log(`  ${res!.url}\n`);
-    output.log("  Opening browser...\n");
-    openBrowser(res!.url);
-    return;
-  }
-
-  // Standard purchase flow
-  let purchase: { url: string; sessionId: string };
+  let purchase: { url: string; sessionId: string; manualFulfillment?: boolean };
   try {
-    purchase = await apiFetch<{ url: string; sessionId: string }>("/api/cards/purchase", {
-      method: "POST",
-      body: { amountCents },
-    });
+    purchase = await apiFetch<{ url: string; sessionId: string; manualFulfillment?: boolean }>(
+      "/purchase",
+      { method: "POST", body: { amountCents } }
+    );
   } catch (e) {
     output.fatal(`Failed to create checkout: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  output.log(`\n  Opening Stripe checkout for $${dollars!.toFixed(2)} card...\n`);
-  output.log(`  ${purchase!.url}\n`);
+  output.log(`\n  ${purchase!.url}\n`);
+
+  if (purchase!.manualFulfillment) {
+    output.log(
+      "  Note: Cards are currently being fulfilled manually. After payment, your card will be available within 72 hours."
+    );
+    output.log("  Run `acp card list` to check when your card is ready.\n");
+    openBrowser(purchase!.url);
+    return;
+  }
+
+  output.log(`  Opening Stripe checkout for $${dollars!.toFixed(2)} card...`);
   openBrowser(purchase!.url);
   output.log("  Waiting for payment...\n");
 
   const result = await poll<{ card: { id: string } }>(
     async () => {
-      const s = await apiFetch<{ status: string; card?: { id: string } }>(
-        `/api/cards/purchase/status?session_id=${purchase!.sessionId}`
+      const s = await apiFetch<{ status: string; card?: { id: string }; error?: string }>(
+        `/purchase/status?session_id=${purchase!.sessionId}`
       );
       if (s.status === "complete" && s.card) return { card: s.card };
+      if (s.status === "failed")
+        throw new Error(
+          s.error ?? "Card could not be provisioned. Your payment has been refunded."
+        );
       if (s.status === "expired") throw new Error("Payment session expired.");
       return null;
     },
@@ -292,7 +271,7 @@ export async function create(amount?: number): Promise<void> {
   output.log("");
 
   try {
-    const card = await apiFetch<AgentCardDetails>(`/api/cards/${result!.card.id}/details`);
+    const card = await apiFetch<AgentCardDetails>(`/${result!.card.id}/details`);
     const expiry = `${String(card.expiryMonth).padStart(2, "0")}/${card.expiryYear}`;
     output.heading(`Card Details — ${result!.card.id}`);
     output.field("Number", card.pan);
@@ -326,7 +305,7 @@ export async function list(): Promise<void> {
     const { cards, requests = [] } = await apiFetch<{
       cards: AgentCard[];
       requests?: PendingRequest[];
-    }>("/api/cards");
+    }>("");
     const data = cards.map((c) => ({
       id: c.id,
       last4: c.last4,
@@ -376,11 +355,9 @@ interface AgentCardDetails {
 
 /** acp card balance <card-id> */
 export async function balance(cardId: string): Promise<void> {
-  if (!cardId) {
-    output.fatal("Card ID required. Example: acp card balance <card-id>");
-  }
+  if (!cardId) output.fatal("Card ID required. Example: acp card balance <card-id>");
   try {
-    const card = await apiFetch<AgentCardDetails>(`/api/cards/${cardId}/details`);
+    const card = await apiFetch<{ amountCents: number }>(`/${cardId}/balance`);
     const data = { id: cardId, amount: `$${(card.amountCents / 100).toFixed(2)}` };
     output.output(data, (d) => {
       output.heading(`Card Balance — ${d.id}`);
@@ -407,32 +384,19 @@ export async function track(opts: TrackOptions): Promise<void> {
   if (!opts.name)
     output.fatal("--name is required. Example: acp card track --name 'AWS credits' --amount 10");
   if (!Number.isFinite(opts.amount) || opts.amount <= 0) {
-    output.fatal(
-      "--amount must be a positive number. Example: acp card track --name 'item' --amount 25"
-    );
+    output.fatal("--amount must be a positive number.");
   }
   try {
-    const token = getToken();
-    const res = await fetch(`${AGENTCARD_API}/api/track/purchase`, {
+    await apiFetch("/track", {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: {
         name: opts.name,
         amount: opts.amount,
         store: opts.store,
-        status: opts.incomplete ? "incomplete" : "complete",
         intent: opts.intent,
-      }),
+        incomplete: opts.incomplete ?? false,
+      },
     });
-    if (!res.ok) {
-      const text = await res.text();
-      let message = text;
-      try {
-        const json = JSON.parse(text);
-        message = json.error ?? json.message ?? text;
-      } catch {}
-      throw new Error(message);
-    }
     output.success("Purchase tracked.");
   } catch (e) {
     output.fatal(`Failed to track purchase: ${e instanceof Error ? e.message : String(e)}`);
@@ -441,11 +405,9 @@ export async function track(opts: TrackOptions): Promise<void> {
 
 /** acp card details <card-id> */
 export async function details(cardId: string): Promise<void> {
-  if (!cardId) {
-    output.fatal("Card ID required. Example: acp card details <card-id>");
-  }
+  if (!cardId) output.fatal("Card ID required. Example: acp card details <card-id>");
   try {
-    const card = await apiFetch<AgentCardDetails>(`/api/cards/${cardId}/details`);
+    const card = await apiFetch<AgentCardDetails>(`/${cardId}/details`);
     const expiry = `${String(card.expiryMonth).padStart(2, "0")}/${card.expiryYear}`;
     const data = {
       id: cardId,

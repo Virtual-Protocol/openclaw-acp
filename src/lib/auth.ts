@@ -35,6 +35,7 @@ export interface AgentKeyResponse {
   name: string;
   apiKey: string;
   walletAddress: string;
+  card?: { state: string; instructions: string };
 }
 
 /** Returned by regenerate — fresh API key for an existing agent. */
@@ -121,12 +122,13 @@ export async function fetchAgents(sessionToken: string): Promise<AgentInfoRespon
 /** Create a new agent for the authenticated user. API key returned once. */
 export async function createAgentApi(
   sessionToken: string,
-  agentName: string
+  agentName: string,
+  cardEmail?: string
 ): Promise<AgentKeyResponse> {
   const { data } = await apiClientWithSession(sessionToken).post<{
     data: AgentKeyResponse;
   }>("/api/agents/lite/key", {
-    data: { name: agentName.trim() },
+    data: { name: agentName.trim(), ...(cardEmail ? { cardEmail } : {}) },
   });
   return data.data;
 }
