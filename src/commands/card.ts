@@ -5,7 +5,6 @@
 // The agentcard token is stored server-side — no local agentcard credentials.
 //
 // acp card signup [--email <email>]        Authenticate with AgentCard (magic link)
-// acp card logout                          Log out and clear saved credentials
 // acp card whoami                          Show logged-in AgentCard email
 // acp card create <amount>                 Purchase a prepaid virtual card via Stripe
 // acp card list                            List all purchased cards + pending requests
@@ -57,8 +56,30 @@ async function apiFetch<T>(
     let message = text;
     try {
       const json = JSON.parse(text);
-      message = json.error ?? json.message ?? text;
+      const err = json.error;
+      message = (typeof err === "object" ? err?.message : err) ?? json.message ?? text;
     } catch {}
+    // Auto re-link: server sent a fresh magic link — poll and re-auth transparently
+    if (typeof message === "string" && message.startsWith("REAUTH:")) {
+      const [, state, email] = message.split(":");
+      if (output.isJsonMode()) {
+        // Agent mode: exit immediately with structured JSON so the LLM can tell the
+        // human to check their email. The LLM retries the command once auth is done.
+        output.json({
+          action: "reauth_required",
+          email,
+          state,
+          message: `AgentCard session expired. A magic link has been sent to ${email}. Ask the human operator to check their email and click the link to re-link, then retry this command.`,
+        });
+        process.exit(1);
+      }
+      // Human mode: show message and poll until link is clicked
+      output.warn(`AgentCard session expired. Magic link sent to ${email}.\n`);
+      output.log("  Click the link in your email to re-link...\n");
+      await pollReauth(getActiveAgent().apiKey, state);
+      output.success(`Re-linked as ${email}. Please retry your command.\n`);
+      process.exit(0);
+    }
     throw new Error(message);
   }
   const json = (await res.json()) as Record<string, unknown>;
@@ -83,12 +104,35 @@ async function apiFetchWithKey<T>(
     let message = text;
     try {
       const json = JSON.parse(text);
-      message = json.error ?? json.message ?? text;
+      const err = json.error;
+      message = (typeof err === "object" ? err?.message : err) ?? json.message ?? text;
     } catch {}
     throw new Error(message);
   }
   const json = (await res.json()) as Record<string, unknown>;
   return (json.data ?? json) as T;
+}
+
+/**
+ * Poll for re-auth completion after auto-sent magic link on token expiry.
+ * Blocks until the user clicks the link (up to 5 minutes).
+ */
+async function pollReauth(apiKey: string, state: string): Promise<void> {
+  const deadline = Date.now() + 5 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 3000));
+    try {
+      const res = await apiFetchWithKey<{ done: boolean }>(apiKey, `/signup/poll?state=${state}`);
+      if (res.done) return;
+    } catch {}
+  }
+  if (output.isJsonMode()) {
+    output.json({
+      action: "reauth_timeout",
+      message: "Re-auth timed out. Run `acp card signup` manually.",
+    });
+  }
+  output.fatal("Re-auth timed out. Run `acp card signup` manually.");
 }
 
 /**
