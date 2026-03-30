@@ -176,6 +176,14 @@ function buildHelp(): string {
     cmd("serve deploy railway env set", "Set env var (KEY=value)"),
     cmd("serve deploy railway env delete", "Delete an env var"),
     "",
+    section("LLM Compute"),
+    cmd("compute setup", "Enable self-funding LLM compute for this agent"),
+    cmd("compute status", "Show compute account status and credit balance"),
+    cmd("compute topup <amount>", "Top up LLM credits from agent wallet (USD)"),
+    cmd("compute config", "Configure auto top-up and fallback model settings"),
+    cmd("compute models", "List available models"),
+    cmd("compute chat '<json>'", "Run a chat completion with OpenAI-compatible payload"),
+    "",
     section("Social"),
     cmd("social twitter login", "Get Twitter/X authentication link"),
     cmd("social twitter post <text>", "Post a tweet"),
@@ -459,6 +467,33 @@ function buildCommandHelp(command: string): string | undefined {
         cmd("deploy railway env", "List env vars on Railway"),
         cmd("deploy railway env set KEY=val", "Set an env var"),
         cmd("deploy railway env delete KEY", "Delete an env var"),
+        "",
+      ].join("\n"),
+
+    compute: () =>
+      [
+        "",
+        `  ${bold("acp compute")} ${dim("— Self-funding LLM inference via agent wallet")}`,
+        "",
+        cmd("setup", "Enable compute for this agent (one-time)"),
+        `    ${dim("Uses your existing ACP key on an OpenAI-compatible endpoint.")}`,
+        "",
+        cmd("status", "Show compute account status and remaining credits"),
+        "",
+        cmd("topup <amount>", "Manually top up LLM credits from agent wallet"),
+        `    ${dim("Amount is in USD. 7% processing fee applies.")}`,
+        `    ${dim("Example: acp compute topup 10")}`,
+        "",
+        cmd("config", "Configure auto top-up and fallback model (interactive)"),
+        `    ${dim("Auto top-up: enable, set threshold, set top-up amount.")}`,
+        `    ${dim("Fallback model: activate cheaper model on low balance.")}`,
+        "",
+        cmd("models", "List available models"),
+        "",
+        cmd("chat '<json>'", "Run a chat completion with an OpenAI-compatible payload"),
+        `    ${dim("Pass the full payload as a JSON string or pipe via stdin. Streaming is not supported.")}`,
+        `    ${dim('Example: acp compute chat \'{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}]}\'')}`,
+        `    ${dim("Example: cat payload.json | acp compute chat")}`,
         "",
       ].join("\n"),
 
@@ -877,6 +912,24 @@ async function main(): Promise<void> {
         return resource.query(url, params);
       }
       console.log(buildCommandHelp("resource"));
+      return;
+    }
+
+    case "compute": {
+      const compute = await import("../src/commands/compute.js");
+      if (subcommand === "setup") return compute.setup();
+      if (subcommand === "status") return compute.status();
+      if (subcommand === "topup") {
+        if (!rest[0]) {
+          console.error("Error: amount is required. Example: acp compute topup 10");
+          process.exit(1);
+        }
+        return compute.topup(rest[0]);
+      }
+      if (subcommand === "config") return compute.config();
+      if (subcommand === "models") return compute.models();
+      if (subcommand === "chat") return compute.chat(rest[0]);
+      console.log(buildCommandHelp("compute"));
       return;
     }
 
