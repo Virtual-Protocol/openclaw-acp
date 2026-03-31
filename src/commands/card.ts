@@ -71,7 +71,7 @@ async function apiFetch<T>(
           action: "reauth_required",
           email: masked,
           state,
-          message: `AgentCard session expired. A magic link has been sent to ${masked}. Ask the human operator to check their email and click the link to re-link, then retry this command.`,
+          message: `AgentCard session expired. A magic link has been sent to ${masked}. Ask the human operator to check their email and click the link, then run \`acp card signup-status ${state}\` to confirm re-link and retry this command.`,
         });
         process.exit(1);
       }
@@ -233,6 +233,16 @@ export async function signup(email?: string): Promise<void> {
     output.fatal(`Failed to send magic link: ${e instanceof Error ? e.message : String(e)}`);
   }
 
+  if (output.isJsonMode()) {
+    output.json({
+      action: "signup_required",
+      email,
+      state: state!,
+      message: `Magic link sent to ${email}. Ask the human operator to check their email and click the link, then run \`acp card signup-status ${state!}\` to confirm and proceed.`,
+    });
+    process.exit(0);
+  }
+
   output.log(`\n  Magic link sent to ${email}. Click the link in your email.\n`);
   output.log("  Waiting...\n");
 
@@ -242,6 +252,28 @@ export async function signup(email?: string): Promise<void> {
     output.success(`AgentCard linked as ${linked.email}\n`);
   } else {
     output.fatal("Timed out waiting for magic link. Try again.");
+  }
+}
+
+/** acp card signup-status <state> — poll magic link completion */
+export async function signupStatus(state: string): Promise<void> {
+  if (!state) output.fatal("State required. Example: acp card signup-status <state>");
+  try {
+    const { apiKey } = getActiveAgent();
+    const res = await apiFetchWithKey<{ done: boolean; email?: string }>(
+      apiKey,
+      `/signup/poll?state=${encodeURIComponent(state)}`
+    );
+    const data = { state, done: res.done, email: res.email ?? null };
+    output.output(data, (d) => {
+      if (d.done) {
+        output.success(`AgentCard linked as ${d.email}\n`);
+      } else {
+        output.log("  Magic link not yet clicked. Ask the user to check their email.\n");
+      }
+    });
+  } catch (e) {
+    output.fatal(`Failed to check signup status: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -458,22 +490,29 @@ export async function track(opts: TrackOptions): Promise<void> {
   }
 }
 
-/** acp card refund [<card-id>] [--list] */
-export async function refund(cardId?: string, opts: { list?: boolean } = {}): Promise<void> {
-  // If --list or no cardId given, fetch cards and prompt
+/** acp card refund [<card-id>] [--list] [--amount <dollars>] */
+export async function refund(
+  cardId?: string,
+  opts: { list?: boolean; amount?: number } = {}
+): Promise<void> {
+  // Fetch card list for picker or to show info when card-id is provided directly
+  let cards: AgentCard[];
+  try {
+    const res = await apiFetch<{ cards: AgentCard[] }>("");
+    cards = res.cards;
+  } catch (e) {
+    output.fatal(`Failed to list cards: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  let selectedCard: AgentCard | undefined;
+
   if (opts.list || !cardId) {
-    let cards: AgentCard[];
-    try {
-      const res = await apiFetch<{ cards: AgentCard[] }>("");
-      cards = res.cards;
-    } catch (e) {
-      output.fatal(`Failed to list cards: ${e instanceof Error ? e.message : String(e)}`);
-    }
     if (cards!.length === 0) output.fatal("No cards found.");
     if (cards!.length === 1) {
-      cardId = cards![0].id;
+      selectedCard = cards![0];
+      cardId = selectedCard.id;
       output.log(
-        `  Using card ${cardId} (last4: ${cards![0].last4}, $${(cards![0].amountCents / 100).toFixed(2)})\n`
+        `  Using card ${cardId} (last4: ${selectedCard.last4}, $${(selectedCard.amountCents / 100).toFixed(2)})\n`
       );
     } else {
       output.log("\n  Select a card to refund:\n");
@@ -486,29 +525,101 @@ export async function refund(cardId?: string, opts: { list?: boolean } = {}): Pr
       const raw = await promptLine("  Enter number: ");
       const idx = parseInt(raw, 10) - 1;
       if (isNaN(idx) || idx < 0 || idx >= cards!.length) output.fatal("Invalid selection.");
-      cardId = cards![idx].id;
+      selectedCard = cards![idx];
+      cardId = selectedCard.id;
+    }
+  } else {
+    selectedCard = cards!.find((c) => c.id === cardId);
+    if (selectedCard) {
+      output.log(
+        `  Card ${selectedCard.id}  last4: ${selectedCard.last4}  $${(selectedCard.amountCents / 100).toFixed(2)}${selectedCard.purchasedAt ? `  ${new Date(selectedCard.purchasedAt).toLocaleDateString()}` : ""}\n`
+      );
     }
   }
+
+  // Resolve amount
+  let dollars: number;
+  if (opts.amount !== undefined) {
+    dollars = opts.amount;
+  } else {
+    const maxDollars = selectedCard ? (selectedCard.amountCents / 100).toFixed(2) : "?";
+    const raw = await promptLine(`  Amount to refund in dollars (max $${maxDollars}): `);
+    dollars = parseFloat(raw);
+  }
+  if (isNaN(dollars) || dollars <= 0) output.fatal("Amount must be a positive number.");
+  const amountCents = Math.round(dollars * 100);
+
+  let refundSession: { url: string; sessionId: string };
   try {
-    const result = await apiFetch<{ refundId: string; status: string; amountCents: number }>(
-      `/${cardId}/refund`,
-      { method: "POST" }
+    refundSession = await apiFetch<{ url: string; sessionId: string }>(`/${cardId}/refund`, {
+      method: "POST",
+      body: { amountCents },
+    });
+  } catch (e) {
+    output.fatal(`Failed to create refund: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  if (output.isJsonMode()) {
+    output.json({
+      action: "refund_checkout",
+      url: refundSession!.url,
+      sessionId: refundSession!.sessionId,
+      cardId,
+      amountCents,
+      message: `Refund checkout ready. Share this link with the user to complete the refund: ${refundSession!.url}`,
+    });
+    process.exit(0);
+  }
+
+  output.log(`\n  ${refundSession!.url}\n`);
+  output.log("  Opening refund checkout...");
+  openBrowser(refundSession!.url);
+  output.log("  Waiting for refund to complete...\n");
+
+  const result = await poll<{ refundedAmountCents: number }>(
+    async () => {
+      const s = await apiFetch<{ status: string; refundedAmountCents?: number; error?: string }>(
+        `/refund/status?session_id=${refundSession!.sessionId}`
+      );
+      if (s.status === "complete")
+        return { refundedAmountCents: s.refundedAmountCents ?? amountCents };
+      if (s.status === "failed") throw new Error(s.error ?? "Refund failed.");
+      if (s.status === "expired") throw new Error("Refund session expired.");
+      return null;
+    },
+    { timeoutMs: 10 * 60 * 1000 }
+  );
+
+  if (!result) output.fatal("Refund timed out. Check your email or contact support.");
+
+  const refundedDollars = `$${(result!.refundedAmountCents / 100).toFixed(2)}`;
+  output.success(`Refund of ${refundedDollars} processed!`);
+  output.log("  Funds will return to your original payment method within 5-10 business days.\n");
+}
+
+/** acp card refund-status <session-id> */
+export async function refundStatus(sessionId: string): Promise<void> {
+  if (!sessionId) output.fatal("Session ID required. Example: acp card refund-status <session-id>");
+  try {
+    const s = await apiFetch<{ status: string; refundedAmountCents?: number; error?: string }>(
+      `/refund/status?session_id=${encodeURIComponent(sessionId)}`
     );
     const data = {
-      id: cardId,
-      refundId: result.refundId,
-      status: result.status,
-      amount: `$${(result.amountCents / 100).toFixed(2)}`,
+      sessionId,
+      status: s.status,
+      amount: s.refundedAmountCents ? `$${(s.refundedAmountCents / 100).toFixed(2)}` : null,
     };
     output.output(data, (d) => {
-      output.heading(`Refund Requested — ${d.id}`);
-      output.field("Refund ID", d.refundId);
+      output.heading(`Refund Status — ${d.sessionId}`);
       output.field("Status", d.status);
-      output.field("Amount", d.amount);
+      if (d.amount) output.field("Refunded", d.amount);
+      output.log("");
+      if (d.status === "complete")
+        output.log("  Funds will return to the original payment method within 5-10 business days.");
       output.log("");
     });
   } catch (e) {
-    output.fatal(`Failed to request refund: ${e instanceof Error ? e.message : String(e)}`);
+    output.fatal(`Failed to get refund status: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 

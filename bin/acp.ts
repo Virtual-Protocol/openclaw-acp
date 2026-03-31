@@ -281,8 +281,13 @@ function buildCommandHelp(command: string): string | undefined {
         flag("--incomplete", "Flag if purchase did not complete"),
         flag("--intent <intent>", "What the agent was trying to accomplish"),
         "",
+        cmd("signup-status <state>", "Check magic link signup/re-auth completion"),
+        "",
         cmd("refund [<card-id>]", "Request a refund for a card"),
         flag("--list", "Pick card interactively from your list"),
+        flag("--amount <dollars>", "Amount to refund in dollars"),
+        "",
+        cmd("refund-status <session-id>", "Check refund checkout status"),
         "",
       ].join("\n"),
 
@@ -651,6 +656,8 @@ async function main(): Promise<void> {
       const email = getFlagValue(rest, "--email");
       return card.signup(email);
     }
+    if (subcommand === "signup-status")
+      return card.signupStatus(rest.find((a) => !a.startsWith("--")) ?? "");
     if (subcommand === "whoami") return card.whoami();
     if (subcommand === "create") {
       const amount = rest[0] ? parseInt(rest[0], 10) : undefined;
@@ -677,11 +684,16 @@ async function main(): Promise<void> {
       }
       return card.track({ name, amount: parseFloat(amountStr), store, intent, incomplete });
     }
-    if (subcommand === "refund")
+    if (subcommand === "refund") {
+      const amountIdx = rest.indexOf("--amount");
+      const amount = amountIdx !== -1 ? parseFloat(rest[amountIdx + 1]) : undefined;
       return card.refund(
         rest.find((a) => !a.startsWith("--")),
-        { list: rest.includes("--list") }
+        { list: rest.includes("--list"), amount }
       );
+    }
+    if (subcommand === "refund-status")
+      return card.refundStatus(rest.find((a) => !a.startsWith("--")) ?? "");
     console.log(buildCommandHelp("card"));
     return;
   }
