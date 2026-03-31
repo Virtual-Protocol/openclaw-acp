@@ -11,6 +11,7 @@
 // acp card details <card-id>               Get PAN, CVV, expiry as structured data
 // acp card balance <card-id>               Show card denomination
 // acp card track --name <n> --amount <a>   Track an agent purchase
+// acp card refund <card-id>               Request a refund for a card
 // =============================================================================
 
 import { createInterface } from "readline";
@@ -454,6 +455,60 @@ export async function track(opts: TrackOptions): Promise<void> {
     output.success("Purchase tracked.");
   } catch (e) {
     output.fatal(`Failed to track purchase: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/** acp card refund [<card-id>] [--list] */
+export async function refund(cardId?: string, opts: { list?: boolean } = {}): Promise<void> {
+  // If --list or no cardId given, fetch cards and prompt
+  if (opts.list || !cardId) {
+    let cards: AgentCard[];
+    try {
+      const res = await apiFetch<{ cards: AgentCard[] }>("");
+      cards = res.cards;
+    } catch (e) {
+      output.fatal(`Failed to list cards: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    if (cards!.length === 0) output.fatal("No cards found.");
+    if (cards!.length === 1) {
+      cardId = cards![0].id;
+      output.log(
+        `  Using card ${cardId} (last4: ${cards![0].last4}, $${(cards![0].amountCents / 100).toFixed(2)})\n`
+      );
+    } else {
+      output.log("\n  Select a card to refund:\n");
+      cards!.forEach((c, i) => {
+        output.log(
+          `  [${i + 1}] ${c.id}  last4: ${c.last4}  $${(c.amountCents / 100).toFixed(2)}${c.purchasedAt ? `  ${new Date(c.purchasedAt).toLocaleDateString()}` : ""}`
+        );
+      });
+      output.log("");
+      const raw = await promptLine("  Enter number: ");
+      const idx = parseInt(raw, 10) - 1;
+      if (isNaN(idx) || idx < 0 || idx >= cards!.length) output.fatal("Invalid selection.");
+      cardId = cards![idx].id;
+    }
+  }
+  try {
+    const result = await apiFetch<{ refundId: string; status: string; amountCents: number }>(
+      `/${cardId}/refund`,
+      { method: "POST" }
+    );
+    const data = {
+      id: cardId,
+      refundId: result.refundId,
+      status: result.status,
+      amount: `$${(result.amountCents / 100).toFixed(2)}`,
+    };
+    output.output(data, (d) => {
+      output.heading(`Refund Requested — ${d.id}`);
+      output.field("Refund ID", d.refundId);
+      output.field("Status", d.status);
+      output.field("Amount", d.amount);
+      output.log("");
+    });
+  } catch (e) {
+    output.fatal(`Failed to request refund: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 

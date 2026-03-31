@@ -103,6 +103,7 @@ function buildHelp(): string {
     cmd("card balance <card-id>", "Show card denomination"),
     cmd("card whoami", "Show currently logged-in AgentCard email"),
     cmd("card track", "Track an agent purchase"),
+    cmd("card refund <card-id>", "Request a refund for a card"),
     flag("--name <name>", "What was purchased (required)"),
     flag("--amount <dollars>", "Purchase amount (required)"),
     flag("--store <store>", "Website or store"),
@@ -279,6 +280,9 @@ function buildCommandHelp(command: string): string | undefined {
         flag("--store <store>", "Website or store where purchase was made"),
         flag("--incomplete", "Flag if purchase did not complete"),
         flag("--intent <intent>", "What the agent was trying to accomplish"),
+        "",
+        cmd("refund [<card-id>]", "Request a refund for a card"),
+        flag("--list", "Pick card interactively from your list"),
         "",
       ].join("\n"),
 
@@ -673,6 +677,11 @@ async function main(): Promise<void> {
       }
       return card.track({ name, amount: parseFloat(amountStr), store, intent, incomplete });
     }
+    if (subcommand === "refund")
+      return card.refund(
+        rest.find((a) => !a.startsWith("--")),
+        { list: rest.includes("--list") }
+      );
     console.log(buildCommandHelp("card"));
     return;
   }
