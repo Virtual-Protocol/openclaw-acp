@@ -549,6 +549,14 @@ export async function refund(
   if (isNaN(dollars) || dollars <= 0) output.fatal("Amount must be a positive number.");
   const amountCents = Math.round(dollars * 100);
 
+  // Fetch card details so human knows what to enter on the Stripe checkout
+  let cardDetails: AgentCardDetails | null = null;
+  try {
+    cardDetails = await apiFetch<AgentCardDetails>(`/${cardId}/details`);
+  } catch {
+    // Non-fatal — refund can still proceed without details
+  }
+
   let refundSession: { url: string; sessionId: string };
   try {
     refundSession = await apiFetch<{ url: string; sessionId: string }>(`/${cardId}/refund`, {
@@ -559,6 +567,10 @@ export async function refund(
     output.fatal(`Failed to create refund: ${e instanceof Error ? e.message : String(e)}`);
   }
 
+  const expiry = cardDetails
+    ? `${String(cardDetails.expiryMonth).padStart(2, "0")}/${cardDetails.expiryYear}`
+    : null;
+
   if (output.isJsonMode()) {
     output.json({
       action: "refund_checkout",
@@ -566,12 +578,20 @@ export async function refund(
       sessionId: refundSession!.sessionId,
       cardId,
       amountCents,
-      message: `Refund checkout ready. Share this link with the user to complete the refund: ${refundSession!.url}`,
+      card: cardDetails ? { pan: cardDetails.pan, cvv: cardDetails.cvv, expiry } : null,
+      message: `Refund checkout ready. Share this link with the user and tell them to use the card details below to complete the checkout.\n\nURL: ${refundSession!.url}${cardDetails ? `\n\nCard Number: ${cardDetails.pan}\nCVV: ${cardDetails.cvv}\nExpiry: ${expiry}` : ""}`,
     });
     process.exit(0);
   }
 
   output.log(`\n  ${refundSession!.url}\n`);
+  if (cardDetails) {
+    output.log("  Use these card details on the checkout page:");
+    output.field("  Number", cardDetails.pan);
+    output.field("  CVV", cardDetails.cvv);
+    output.field("  Expiry", expiry!);
+    output.log("");
+  }
   output.log("  Opening refund checkout...");
   openBrowser(refundSession!.url);
   output.log("  Waiting for refund to complete...\n");
