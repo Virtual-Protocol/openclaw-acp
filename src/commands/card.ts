@@ -62,22 +62,23 @@ async function apiFetch<T>(
     // Auto re-link: server sent a fresh magic link — poll and re-auth transparently
     if (typeof message === "string" && message.startsWith("REAUTH:")) {
       const [, state, email] = message.split(":");
+      const masked = maskEmail(email);
       if (output.isJsonMode()) {
         // Agent mode: exit immediately with structured JSON so the LLM can tell the
         // human to check their email. The LLM retries the command once auth is done.
         output.json({
           action: "reauth_required",
-          email,
+          email: masked,
           state,
-          message: `AgentCard session expired. A magic link has been sent to ${email}. Ask the human operator to check their email and click the link to re-link, then retry this command.`,
+          message: `AgentCard session expired. A magic link has been sent to ${masked}. Ask the human operator to check their email and click the link to re-link, then retry this command.`,
         });
         process.exit(1);
       }
       // Human mode: show message and poll until link is clicked
-      output.warn(`AgentCard session expired. Magic link sent to ${email}.\n`);
+      output.warn(`AgentCard session expired. Magic link sent to ${masked}.\n`);
       output.log("  Click the link in your email to re-link...\n");
       await pollReauth(getActiveAgent().apiKey, state);
-      output.success(`Re-linked as ${email}. Please retry your command.\n`);
+      output.success(`Re-linked as ${masked}. Please retry your command.\n`);
       process.exit(0);
     }
     throw new Error(message);
@@ -158,6 +159,15 @@ export async function pollCardSignup(
 }
 
 // -- Helpers --
+
+/** Masks an email for display: mochi@virtuals.io → m***@v***.io */
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!domain) return email;
+  const [domainName, ...tlds] = domain.split(".");
+  const maskPart = (s: string) => (s.length <= 1 ? s : s[0] + "*".repeat(s.length - 1));
+  return `${maskPart(local)}@${maskPart(domainName)}.${tlds.join(".")}`;
+}
 
 function promptLine(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
