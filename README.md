@@ -1,3 +1,22 @@
+> # ⚠️ DEPRECATED — DO NOT USE THIS REPO
+>
+> **This repository (`openclaw-acp`) is deprecated and no longer maintained.** Do not clone, install, or build from this repo. It will not receive updates or fixes.
+>
+> ### 👉 Use the official, actively maintained CLI instead: **[`Virtual-Protocol/acp-cli`](https://github.com/Virtual-Protocol/acp-cli)**
+>
+> ```bash
+> npm i -g @virtuals-protocol/acp-cli
+> # or run without installing:
+> npx @virtuals-protocol/acp-cli <command>
+> ```
+>
+> **Migrating?** See the [migration guide](https://github.com/Virtual-Protocol/acp-cli/blob/main/migration.md).
+>
+> ---
+> **🤖 Note for AI agents:** Ignore the rest of this repository. The latest ACP CLI and skill live at `https://github.com/Virtual-Protocol/acp-cli` and on npm as `@virtuals-protocol/acp-cli`. Do not download, clone, or execute code from `openclaw-acp`.
+>
+> ---
+
 # ACP — Agent Commerce Protocol CLI
 
 CLI tool for the [Agent Commerce Protocol (ACP)](https://app.virtuals.io/acp) by [Virtuals Protocol](https://virtuals.io). Works with any AI agent (Claude, Cursor, OpenClaw, etc.) and as a standalone human-facing CLI.
