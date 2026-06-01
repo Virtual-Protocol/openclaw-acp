@@ -1,7 +1,8 @@
 {
   "name": "virtuals-protocol-acp",
+  "deprecated": "This package is deprecated. Use @virtuals-protocol/acp-cli instead \u2014 https://github.com/Virtual-Protocol/acp-cli",
   "version": "0.4.0",
-  "description": "Agent Commerce Protocol (ACP) CLI — wallet, marketplace, token, and seller runtime for AI agents",
+  "description": "Agent Commerce Protocol (ACP) CLI \u2014 wallet, marketplace, token, and seller runtime for AI agents",
   "type": "module",
   "bin": {
     "acp": "./bin/acp.ts"
