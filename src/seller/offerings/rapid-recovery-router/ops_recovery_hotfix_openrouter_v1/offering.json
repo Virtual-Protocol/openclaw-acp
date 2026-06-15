@@ -1,0 +1,34 @@
+{
+  "name": "ops_recovery_hotfix_openrouter_v1",
+  "description": "timeout | validation | rejected | retry payload\n입력 1줄 -> 복구결과 3종(원인 분류, retry payload, 실행 next actions)으로 바로 반환합니다. 0.02 진입 티어이며 결과에 recommended_next_tier( none|turbo|guardrail )를 포함합니다.",
+  "jobFee": 0.02,
+  "jobFeeType": "fixed",
+  "deliverable": "json",
+  "requiredFunds": false,
+  "requirement": {
+    "type": "object",
+    "required": ["error_text"],
+    "properties": {
+      "error_text": {
+        "type": "string",
+        "description": "Latest rejection/timeout/validation error text."
+      },
+      "failed_payload": {
+        "type": "string",
+        "description": "Optional failed request payload or body text."
+      },
+      "target_system": {
+        "type": "string",
+        "description": "Optional target (acp/x/browser/api). Default: acp."
+      },
+      "persona_mode": {
+        "type": "string",
+        "description": "Optional lane preference: price, speed, completion."
+      },
+      "buyer_goal": {
+        "type": "string",
+        "description": "Optional one-line buyer outcome to optimize for."
+      }
+    }
+  }
+}
