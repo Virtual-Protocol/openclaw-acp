@@ -244,3 +244,35 @@ export async function syncBountyJobStatus(params: {
   });
   return extractData<unknown>(res.data);
 }
+
+export interface BountySearchFilters {
+  status?: string;
+  category?: string;
+  minBudget?: number;
+  maxBudget?: number;
+  limit?: number;
+}
+
+export interface BountySearchResult {
+  data: Array<Record<string, unknown>>;
+  meta?: {
+    total?: number;
+    page?: number;
+    per_page?: number;
+  };
+}
+
+export async function searchBounties(
+  query: string,
+  filters?: BountySearchFilters
+): Promise<BountySearchResult> {
+  const params = new URLSearchParams();
+  params.append("search", query);
+  if (filters?.status) params.append("status", filters.status);
+  if (filters?.category) params.append("category", filters.category);
+  if (filters?.minBudget != null) params.append("min_budget", String(filters.minBudget));
+  if (filters?.maxBudget != null) params.append("max_budget", String(filters.maxBudget));
+  if (filters?.limit) params.append("limit", String(filters.limit));
+  const res = await api.get(`/bounties?${params.toString()}`);
+  return extractData<BountySearchResult>(res.data);
+}
