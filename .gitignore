@@ -35,7 +35,6 @@ coverage/
 .railway/
 
 # Generated deploy artifacts
-Dockerfile
 .dockerignore
 
 # Optional: local OpenClaw / Moltbot

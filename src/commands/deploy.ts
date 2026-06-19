@@ -15,6 +15,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
+import { parse as parseDotenv } from "dotenv";
 import readline from "readline";
 import * as output from "../lib/output.js";
 import { readConfig, writeConfig, getActiveAgent, sanitizeAgentName, ROOT } from "../lib/config.js";
@@ -240,7 +241,39 @@ export async function deploy(): Promise<void> {
   output.log(`  Offerings: ${offerings.join(", ")}`);
   output.log("");
 
-  // Deploy (this creates the service on first run)
+  // Ensure service is valid before deploying; if stale, clear it so railway up creates a new one
+  let isNewService = false;
+  if (!railway.isServiceValid()) {
+    output.log(
+      "  Linked service not found. Clearing stale link — Railway will create a new service on deploy..."
+    );
+    railway.clearLinkedService();
+    isNewService = true;
+  }
+
+  // Collect env vars to sync
+  const config = readConfig();
+  const dotenvVars: Record<string, string> = fs.existsSync(path.resolve(ROOT, ".env"))
+    ? parseDotenv(fs.readFileSync(path.resolve(ROOT, ".env")))
+    : {};
+  const envVars: Record<string, string> = { ...dotenvVars };
+  if (config.LITE_AGENT_API_KEY) envVars["LITE_AGENT_API_KEY"] = config.LITE_AGENT_API_KEY;
+
+  if (!isNewService && Object.keys(envVars).length > 0) {
+    try {
+      railway.setVariables(envVars);
+      output.success(`Set ${Object.keys(envVars).length} env var(s) on Railway`);
+    } catch {
+      output.warn(
+        `Could not set env vars. Set them manually:\n` +
+          Object.keys(envVars)
+            .map((k) => `  acp serve deploy railway env set ${k}=<value>`)
+            .join("\n")
+      );
+    }
+  }
+
+  // Deploy
   output.log("  Deploying to Railway...\n");
   railway.up();
 
@@ -257,18 +290,17 @@ export async function deploy(): Promise<void> {
     }
   }
 
-  // Set API key on the service
-  const config = readConfig();
-  const apiKey = config.LITE_AGENT_API_KEY;
-  if (apiKey) {
+  // For new services, set env vars after deploy once the service exists
+  if (isNewService && Object.keys(envVars).length > 0) {
     try {
-      railway.setVariable("LITE_AGENT_API_KEY", apiKey);
-      output.success("Set LITE_AGENT_API_KEY on Railway");
+      railway.setVariables(envVars);
+      output.success(`Set ${Object.keys(envVars).length} env var(s) on Railway`);
     } catch {
       output.warn(
-        "Could not set LITE_AGENT_API_KEY. Set it manually:\n" +
-          "  acp serve deploy railway env set LITE_AGENT_API_KEY=" +
-          apiKey
+        `Could not set env vars. Set them manually:\n` +
+          Object.keys(envVars)
+            .map((k) => `  acp serve deploy railway env set ${k}=<value>`)
+            .join("\n")
       );
     }
   }

@@ -3,6 +3,7 @@
 // =============================================================================
 
 /** Optional token-transfer instruction returned by an offering handler. */
+import type { AcpJobEventData } from "./types.js";
 export interface TransferInstruction {
   /** Token contract address (e.g. ERC-20 CA). */
   ca: string;
@@ -42,10 +43,17 @@ export type ValidationResult = boolean | { valid: boolean; reason?: string };
 export interface OfferingHandlers {
   executeJob: (request: Record<string, any>) => Promise<ExecuteJobResult>;
   validateRequirements?: (
-    request: Record<string, any>
+    request: Record<string, any>,
+    data: AcpJobEventData
   ) => ValidationResult | Promise<ValidationResult>;
-  requestPayment?: (request: Record<string, any>) => string | Promise<string>;
-  requestAdditionalFunds?: (request: Record<string, any>) =>
+  requestPayment?: (
+    request: Record<string, any>,
+    data: AcpJobEventData
+  ) => string | Promise<string>;
+  requestAdditionalFunds?: (
+    request: Record<string, any>,
+    data: AcpJobEventData
+  ) =>
     | {
         content?: string;
         amount: number;

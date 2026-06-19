@@ -151,10 +151,41 @@ export function hasLinkedService(): boolean {
   }
 }
 
+/** Returns true if the linked service exists and is reachable in the project. */
+export function isServiceValid(): boolean {
+  try {
+    const status = execSync("railway status", {
+      ...EXEC_OPTS,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+    return !status.includes("Service: None") && !status.includes("not found in project");
+  } catch {
+    return false;
+  }
+}
+
+/** Clear the linked service so the next `railway up` creates a fresh one. */
+export function clearLinkedService(): void {
+  const global = readGlobalConfig();
+  if (!global?.projects?.[ROOT]) return;
+  global.projects[ROOT].service = null;
+  writeGlobalConfig(global);
+}
+
 // -- Variables --
 
 export function setVariable(key: string, value: string): void {
   execSync(`railway variables set ${key}="${value}"`, {
+    ...EXEC_OPTS,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+}
+
+export function setVariables(vars: Record<string, string>): void {
+  const pairs = Object.entries(vars)
+    .map(([k, v]) => `${k}="${v}"`)
+    .join(" ");
+  execSync(`railway variables set ${pairs}`, {
     ...EXEC_OPTS,
     stdio: ["pipe", "pipe", "pipe"],
   });
