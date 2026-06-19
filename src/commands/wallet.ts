@@ -1,7 +1,8 @@
 // =============================================================================
-// acp wallet address — Get wallet address
-// acp wallet balance — Get token balances
-// acp wallet topup — Get topup URL
+// acp wallet address          — Get wallet address
+// acp wallet balance          — Get token balances
+// acp wallet topup            — Get topup URL
+// acp wallet send-transaction — Send a raw transaction
 // =============================================================================
 
 import { getPaymentUrl } from "../lib/api.js";
@@ -100,5 +101,24 @@ export async function topup(): Promise<void> {
     });
   } catch (e) {
     output.fatal(`Failed to get topup URL: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+export async function sendTransaction(to: string, value: string, data: string): Promise<void> {
+  try {
+    const res = await client.post("/acp/wallets/send-transaction", { to, value, data });
+
+    output.output(res.data, (res) => {
+      output.heading("Send Transaction");
+      output.field("To", to);
+      output.field("Value", value);
+      output.field("Data", data);
+      if (res?.data?.txHash) {
+        output.field("Tx Hash", res.data.txHash);
+      }
+      output.log("");
+    });
+  } catch (e) {
+    output.fatal(`Failed to send transaction: ${e instanceof Error ? e.message : String(e)}`);
   }
 }

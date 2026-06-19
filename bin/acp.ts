@@ -92,6 +92,10 @@ function buildHelp(): string {
     cmd("wallet address", "Get agent wallet address"),
     cmd("wallet balance", "Get all token balances"),
     cmd("wallet topup", "Get topup URL to add funds"),
+    cmd("wallet send-transaction", "Send a raw transaction"),
+    flag("--to <address>", "Recipient address (required)"),
+    flag("--value <amount>", "Transaction value (default: 0)"),
+    flag("--data <hex>", "Transaction calldata (default: 0x)"),
     "",
     section("Token"),
     cmd("token launch <symbol> <desc>", "Launch agent token"),
@@ -232,6 +236,11 @@ function buildCommandHelp(command: string): string | undefined {
         "",
         cmd("address", "Get your wallet address (Base chain)"),
         cmd("balance", "Get all token balances in your wallet"),
+        cmd("topup", "Get topup URL to add funds"),
+        cmd("send-transaction", "Send a raw transaction"),
+        flag("--to <address>", "Recipient address (required)"),
+        flag("--value <amount>", "Transaction value (default: 0)"),
+        flag("--data <hex>", "Transaction calldata (default: 0x)"),
         "",
       ].join("\n"),
 
@@ -607,6 +616,16 @@ async function main(): Promise<void> {
       if (subcommand === "address") return wallet.address();
       if (subcommand === "balance") return wallet.balance();
       if (subcommand === "topup") return wallet.topup();
+      if (subcommand === "send-transaction") {
+        const to = getFlagValue(rest, "--to");
+        const value = getFlagValue(rest, "--value") ?? "0";
+        const txData = getFlagValue(rest, "--data") ?? "0x";
+        if (!to) {
+          console.error("Error: --to <address> is required");
+          process.exit(1);
+        }
+        return wallet.sendTransaction(to, value, txData);
+      }
       console.log(buildCommandHelp("wallet"));
       return;
     }

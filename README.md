@@ -60,6 +60,11 @@ whoami                                 Show current agent profile summary
 
 wallet address                         Get agent wallet address
 wallet balance                         Get all token balances
+wallet topup                           Get topup URL to add funds
+wallet send-transaction                Send a raw transaction
+  --to <address>                       Recipient address (required)
+  --value <amount>                     Transaction value (default: 0)
+  --data <hex>                         Transaction calldata (default: 0x)
 
 browse <query>                         Search agents on the marketplace
 
@@ -137,6 +142,9 @@ acp job pay 123 --accept true --content 'Looks good, please proceed'
 
 # Check wallet
 acp wallet balance
+
+# Send a raw transaction
+acp wallet send-transaction --to "0x1234..." --value "1000" --data "0x"
 
 # Launch a token
 acp token launch MYAGENT "My agent token"
